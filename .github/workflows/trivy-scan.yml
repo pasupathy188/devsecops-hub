@@ -1,0 +1,82 @@
+name: Automated Trivy Scan & Compliance Ingestion
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 2 * * *'   # Runs automatically every night at 2 AM
+
+jobs:
+  scan-and-report:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Backend Docker image
+        run: |
+          docker build -t backend:latest ./backend
+
+      - name: Run Trivy vulnerability scan
+        id: trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'backend:latest'
+          format: 'json'
+          output: 'trivy-output.json'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Post findings to Compliance Hub API
+        env:
+          API_URL: ${{ secrets.COMPLIANCE_API_URL }}
+        run: |
+          if [ -f "trivy-output.json" ]; then
+            echo "📊 Trivy report found. Processing vulnerabilities..."
+            
+            python3 -c "
+            import json
+            import os
+            import requests
+            
+            api_url = os.environ.get('API_URL', 'http://localhost:3500/api/findings')
+            
+            with open('trivy-output.json', 'r') as f:
+                data = json.load(f)
+            
+            count = 0
+            for result in data.get('Results', []):
+                for vuln in result.get('Vulnerabilities', []):
+                    severity = vuln.get('Severity', 'MEDIUM')
+                    if severity in ['CRITICAL', 'HIGH']:
+                        description = f\"{vuln.get('VulnerabilityID')} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})\"
+                        
+                        payload = {
+                            'description': description,
+                            'severity': severity.capitalize(),
+                            'status': 'Open',
+                            'remediated': False
+                        }
+                        
+                        try:
+                            response = requests.post(api_url, json=payload)
+                            if response.status_code == 201 or response.status_code == 200:
+                                count += 1
+                                print(f'✅ Added: {description[:50]}...')
+                            else:
+                                print(f'❌ Failed to post: {response.status_code} - {response.text}')
+                        except Exception as e:
+                            print(f'❌ Error: {e}')
+            
+            print(f'🎯 Added {count} findings to Compliance Hub.')
+            "
+          else:
+            echo "❌ No Trivy output file found. Skipping API call."
+
+      - name: Upload Trivy report (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-output.json

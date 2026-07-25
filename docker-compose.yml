@@ -1,0 +1,39 @@
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - hub-network
+
+  backend:
+    build: ./backend
+    container_name: backend
+    ports:
+      - "3500:3500"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/compliance
+    depends_on:
+      - mongodb
+    networks:
+      - hub-network
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+    networks:
+      - hub-network
+
+volumes:
+  mongo-data:
+
+networks:
+  hub-network:
+    driver: bridge

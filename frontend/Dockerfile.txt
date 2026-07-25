@@ -1,0 +1,30 @@
+# Stage 1: Build the React app
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy the rest of the code
+COPY . .
+
+# IMPORTANT: Set the backend URL for the container environment
+# React uses this variable during build time
+ENV REACT_APP_BACKEND_URL=http://backend:3500
+
+# Build the production static files
+RUN npm run build
+
+# Stage 2: Serve the static files with Nginx
+FROM nginx:alpine
+
+# Copy the built files from Stage 1 to Nginx's serving directory
+COPY --from=builder /app/build /usr/share/nginx/html
+
+# Expose port 80
+EXPOSE 80
+
+# Start Nginx
+CMD ["nginx", "-g", "daemon off;"]

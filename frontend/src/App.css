@@ -1,0 +1,337 @@
+/* ===== RESET & BASE ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f0f2f5;
+  color: #1a1a2e;
+}
+
+/* ===== APP CONTAINER ===== */
+.app-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* ===== HEADER ===== */
+.app-header {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  color: white;
+  padding: 30px 32px;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+.app-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-bottom: 16px;
+}
+
+/* ===== COMPLIANCE SCORE ===== */
+.score-container {
+  background: rgba(255,255,255,0.08);
+  padding: 16px 20px;
+  border-radius: 12px;
+}
+
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.score-label {
+  font-size: 14px;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.score-percentage {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.score-bar-background {
+  height: 8px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.8s ease-in-out;
+}
+
+/* ===== STATS GRID ===== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: white;
+  padding: 20px 16px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border-left: 4px solid #1a1a2e;
+  transition: transform 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+
+.stat-card .stat-number {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.stat-card .stat-label {
+  font-size: 13px;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.stat-card.critical { border-left-color: #d32f2f; }
+.stat-card.open { border-left-color: #f57c00; }
+.stat-card.resolved { border-left-color: #2e7d32; }
+
+/* ===== ADD FINDING FORM ===== */
+.add-form-container {
+  background: white;
+  padding: 20px 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  margin-bottom: 24px;
+}
+
+.add-form {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.description-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: border 0.2s;
+}
+
+.description-input:focus {
+  outline: none;
+  border-color: #1a1a2e;
+}
+
+.severity-select {
+  padding: 10px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  background: white;
+  cursor: pointer;
+}
+
+.add-button {
+  padding: 10px 28px;
+  background: #1a1a2e;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.add-button:hover {
+  background: #2d2d44;
+}
+
+.add-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  background: #ffebee;
+  color: #c62828;
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-top: 12px;
+  border-left: 4px solid #c62828;
+}
+
+/* ===== FINDINGS TABLE ===== */
+.table-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+
+.table-title {
+  font-size: 18px;
+  font-weight: 600;
+  padding: 20px 24px 8px 24px;
+  color: #1a1a2e;
+}
+
+.findings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.findings-table thead {
+  background: #f8f9fa;
+}
+
+.findings-table th {
+  text-align: left;
+  padding: 12px 20px;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+.findings-table td {
+  padding: 12px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+}
+
+.findings-table tr:last-child td {
+  border-bottom: none;
+}
+
+.findings-table tr:hover {
+  background: #fafafa;
+}
+
+.remediated-row {
+  background: #f6faf6;
+  opacity: 0.75;
+}
+
+.remediated-row:hover {
+  background: #eef5ee;
+}
+
+/* ===== SEVERITY BADGE ===== */
+.severity-badge {
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: inline-block;
+}
+
+/* ===== STATUS SELECT ===== */
+.status-select {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 2px solid;
+  cursor: pointer;
+  background: white;
+  outline: none;
+}
+
+/* ===== ACTIONS ===== */
+.actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.action-btn:hover {
+  background: #f0f0f0;
+}
+
+.delete-btn:hover {
+  background: #ffebee;
+}
+
+.remediated-check {
+  font-size: 16px;
+}
+
+/* ===== EMPTY STATE ===== */
+.empty-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #888;
+  font-size: 16px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .add-form {
+    flex-direction: column;
+  }
+  
+  .findings-table {
+    font-size: 12px;
+  }
+  
+  .findings-table th,
+  .findings-table td {
+    padding: 8px 12px;
+  }
+  
+  .app-header h1 {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  
+  .stat-card .stat-number {
+    font-size: 22px;
+  }
+}
