@@ -22,10 +22,8 @@ const io = new Server(server, {
 
 // --- MongoDB Connection ---
 mongoose.connect('mongodb://pasupathy188_db_user:2lDt4P1ryD5aiqfD@ac-gpnjktl-shard-00-00.adhmijr.mongodb.net:27017,ac-gpnjktl-shard-00-01.adhmijr.mongodb.net:27017,ac-gpnjktl-shard-00-02.adhmijr.mongodb.net:27017/?ssl=true&replicaSet=atlas-11l6hw-shard-0&authSource=admin&appName=Cluster0')
-    .then(() => console.log('✅ Connected to MongoDB'))
-    .catch(err => console.log('⚠️ MongoDB not running yet.', err));
-    .then(() => console.log('✅ Connected to MongoDB'))
-    .catch(err => console.log('⚠️ MongoDB not running yet. Server will still start.'));
+  .then(() => console.log('✅ Connected to MongoDB'))
+  .catch(err => console.log('⚠️ MongoDB not running yet.', err));
 
 // --- Define the "Compliance Finding" Schema ---
 const FindingSchema = new mongoose.Schema({
