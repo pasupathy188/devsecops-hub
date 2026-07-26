@@ -54,7 +54,6 @@ function App() {
       const data = await response.json();
       setFindings(prev => [data, ...prev]);
       setDescription('');
-      setStatus('Open');
     } catch (err) {
       console.error('Error adding finding:', err);
       setError(`Failed to add finding: ${err.message}`);
