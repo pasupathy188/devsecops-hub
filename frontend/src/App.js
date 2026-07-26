@@ -5,7 +5,6 @@ function App() {
   const [findings, setFindings] = useState([]);
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState('Medium');
-  const [status, setStatus] = useState('Open');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
