@@ -3,10 +3,11 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
+require('dotenv').config(); // Load environment variables from .env
 
 const app = express();
 const server = http.createServer(app);
-console.log('🔍 MONGO_URI from env:', process.env.MONGO_URI);
+console.log('🔍 MONGO_URI from env:', process.env.MONGO_URI ? '✅ Present' : '❌ Missing');
 
 // Enable CORS and JSON parsing
 app.use(cors());
@@ -21,9 +22,10 @@ const io = new Server(server, {
 });
 
 // --- MongoDB Connection ---
-mongoose.connect('mongodb://pasupathy188_db_user:2lDt4P1ryD5aiqfD@ac-gpnjktl-shard-00-00.adhmijr.mongodb.net:27017,ac-gpnjktl-shard-00-01.adhmijr.mongodb.net:27017,ac-gpnjktl-shard-00-02.adhmijr.mongodb.net:27017/?ssl=true&replicaSet=atlas-11l6hw-shard-0&authSource=admin&appName=Cluster0')
-  .then(() => console.log('✅ Connected to MongoDB'))
-  .catch(err => console.log('⚠️ MongoDB not running yet.', err));
+const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/compliance';
+mongoose.connect(mongoURI)
+    .then(() => console.log('✅ Connected to MongoDB'))
+    .catch(err => console.log('⚠️ MongoDB not running yet.', err));
 
 // --- Define the "Compliance Finding" Schema ---
 const FindingSchema = new mongoose.Schema({
@@ -60,7 +62,8 @@ app.post('/api/findings', async (req, res) => {
 
         const finding = new Finding({
             description: req.body.description.trim(),
-            severity: req.body.severity || 'Medium'
+            severity: req.body.severity || 'Medium',
+            status: req.body.status || 'Open'
         });
 
         await finding.save();
@@ -79,7 +82,6 @@ app.put('/api/findings/:id', async (req, res) => {
             return res.status(404).json({ error: 'Finding not found' });
         }
         
-        // Allow updating status and/or remediated
         if (req.body.status !== undefined) {
             finding.status = req.body.status;
         }
