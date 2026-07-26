@@ -8,11 +8,14 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Use environment variable for backend URL
+  const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3500/api/findings';
+
   // 1. Load findings
   useEffect(() => {
     const fetchFindings = async () => {
       try {
-        const response = await fetch('http://localhost:3500/api/findings');
+        const response = await fetch(API_URL);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         setFindings(data);
@@ -22,7 +25,7 @@ function App() {
       }
     };
     fetchFindings();
-  }, []);
+  }, [API_URL]);
 
   // 2. Add a finding
   const addFinding = async (e) => {
@@ -36,7 +39,7 @@ function App() {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:3500/api/findings', {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -65,7 +68,7 @@ function App() {
   // 3. Update finding (status or remediated)
   const updateFinding = async (id, updates) => {
     try {
-      const response = await fetch(`http://localhost:3500/api/findings/${id}`, {
+      const response = await fetch(`${API_URL}/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -91,7 +94,7 @@ function App() {
     if (!window.confirm('Are you sure you want to delete this finding?')) return;
 
     try {
-      const response = await fetch(`http://localhost:3500/api/findings/${id}`, {
+      const response = await fetch(`${API_URL}/${id}`, {
         method: 'DELETE'
       });
 
