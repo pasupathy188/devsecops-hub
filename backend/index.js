@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
+console.log('🔍 MONGO_URI from env:', process.env.MONGO_URI);
 
 // Enable CORS and JSON parsing
 app.use(cors());
