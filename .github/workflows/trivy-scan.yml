@@ -33,47 +33,52 @@ jobs:
         env:
           API_URL: ${{ secrets.COMPLIANCE_API_URL }}
         run: |
-          if [ -f "trivy-output.json" ]; then
-            echo "📊 Trivy report found. Processing vulnerabilities..."
-            
-            python3 -c "
-            import json
-            import os
-            import requests
-            
-            api_url = os.environ.get('API_URL', 'http://localhost:3500/api/findings')
-            
-            with open('trivy-output.json', 'r') as f:
-                data = json.load(f)
-            
-            count = 0
-            for result in data.get('Results', []):
-                for vuln in result.get('Vulnerabilities', []):
-                    severity = vuln.get('Severity', 'MEDIUM')
-                    if severity in ['CRITICAL', 'HIGH']:
-                        description = f\"{vuln.get('VulnerabilityID')} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})\"
-                        
-                        payload = {
-                            'description': description,
-                            'severity': severity.capitalize(),
-                            'status': 'Open',
-                            'remediated': False
-                        }
-                        
-                        try:
-                            response = requests.post(api_url, json=payload)
-                            if response.status_code == 201 or response.status_code == 200:
-                                count += 1
-                                print(f'✅ Added: {description[:50]}...')
-                            else:
-                                print(f'❌ Failed to post: {response.status_code} - {response.text}')
-                        except Exception as e:
-                            print(f'❌ Error: {e}')
-            
-            print(f'🎯 Added {count} findings to Compliance Hub.')
-            "
-          else:
-            echo "❌ No Trivy output file found. Skipping API call."
+          # Write the Python script to a temporary file
+          cat << 'EOF' > /tmp/trivy_post.py
+          import json
+          import os
+          import requests
+
+          api_url = os.environ.get('API_URL', 'http://localhost:3500/api/findings')
+
+          try:
+              with open('trivy-output.json', 'r') as f:
+                  data = json.load(f)
+          except FileNotFoundError:
+              print('❌ No trivy-output.json found. Skipping API call.')
+              exit(0)
+
+          count = 0
+          for result in data.get('Results', []):
+              for vuln in result.get('Vulnerabilities', []):
+                  severity = vuln.get('Severity', 'MEDIUM')
+                  if severity in ['CRITICAL', 'HIGH']:
+                      # Map severity to proper case (Critical, High)
+                      mapped_severity = severity.capitalize()
+                      description = f"{vuln.get('VulnerabilityID')} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})"
+                      
+                      payload = {
+                          'description': description,
+                          'severity': mapped_severity,
+                          'status': 'Open',
+                          'remediated': False
+                      }
+                      
+                      try:
+                          response = requests.post(api_url, json=payload)
+                          if response.status_code == 201 or response.status_code == 200:
+                              count += 1
+                              print(f'✅ Added: {description[:50]}...')
+                          else:
+                              print(f'❌ Failed to post: {response.status_code} - {response.text}')
+                      except Exception as e:
+                          print(f'❌ Error: {e}')
+          
+          print(f'🎯 Added {count} findings to Compliance Hub.')
+          EOF
+
+          # Execute the Python script
+          python3 /tmp/trivy_post.py
 
       - name: Upload Trivy report (optional)
         uses: actions/upload-artifact@v4
