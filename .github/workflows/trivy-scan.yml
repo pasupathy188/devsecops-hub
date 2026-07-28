@@ -43,31 +43,55 @@ jobs:
               print('No trivy-output.json found.')
               exit(0)
 
+          # Fetch existing findings to avoid re-adding duplicates across runs
+          existing_descriptions = set()
+          try:
+              resp = requests.get(api_url)
+              if resp.status_code == 200:
+                  for item in resp.json():
+                      existing_descriptions.add(item.get('description', ''))
+          except Exception as e:
+              print(f'Warning: could not fetch existing findings: {e}')
+
           count = 0
+          skipped = 0
+          seen_cves = set()
 
           for result in data.get('Results', []):
               for vuln in result.get('Vulnerabilities', []):
                   severity = vuln.get('Severity', 'MEDIUM')
-                  if severity in ['CRITICAL', 'HIGH']:
-                      mapped_severity = severity.capitalize()
-                      description = f"{vuln.get('VulnerabilityID')} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})"
-                      payload = {
-                          'description': description,
-                          'severity': mapped_severity,
-                          'status': 'Open',
-                          'remediated': False
-                      }
-                      try:
-                          response = requests.post(api_url, json=payload)
-                          if response.status_code in [200, 201]:
-                              count += 1
-                              print(f'Added: {description[:50]}...')
-                          else:
-                              print(f'Failed: {response.status_code}')
-                      except Exception as e:
-                          print(f'Error: {e}')
+                  if severity not in ['CRITICAL', 'HIGH']:
+                      continue
 
-          print(f'Added {count} findings to Compliance Hub.')
+                  cve_id = vuln.get('VulnerabilityID')
+                  if cve_id in seen_cves:
+                      continue
+                  seen_cves.add(cve_id)
+
+                  mapped_severity = severity.capitalize()
+                  description = f"{cve_id} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})"
+
+                  if description in existing_descriptions:
+                      skipped += 1
+                      continue
+
+                  payload = {
+                      'description': description,
+                      'severity': mapped_severity,
+                      'status': 'Open',
+                      'remediated': False
+                  }
+                  try:
+                      response = requests.post(api_url, json=payload)
+                      if response.status_code in [200, 201]:
+                          count += 1
+                          print(f'Added: {description[:50]}...')
+                      else:
+                          print(f'Failed: {response.status_code}')
+                  except Exception as e:
+                      print(f'Error: {e}')
+
+          print(f'Added {count} new findings. Skipped {skipped} duplicates.')
           PYEOF
 
       - name: Install Python dependencies
