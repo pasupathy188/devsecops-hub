@@ -1,62 +1,103 @@
+# ============================================================
+# WORKFLOW NAME: Automated Trivy Scan & Compliance Ingestion
+# PURPOSE: Scans the Docker image for CVEs and posts them
+#          to your live Render backend via REST API.
+# ============================================================
 name: Automated Trivy Scan & Compliance Ingestion
 
+# ============================================================
+# TRIGGERS: When does this workflow run?
+# ============================================================
 on:
+  # 1. Runs when code is pushed to the main branch
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main" ]
+  
+  # 2. Runs when a Pull Request is opened against main
   pull_request:
     branches: [ "main" ]
+  
+  # 3. Runs on a schedule (every night at 2:00 AM UTC)
+  #    This catches newly published CVEs even if code hasn't changed.
   schedule:
-    - cron: '0 2 * * *'   # Runs automatically every night at 2 AM
+    - cron: '0 2 * * *'
 
+# ============================================================
+# JOBS: The actual work happens here
+# ============================================================
 jobs:
+  # JOB NAME: scan-and-report
   scan-and-report:
+    # Runs on the latest Ubuntu runner provided by GitHub
     runs-on: ubuntu-latest
     
+    # ============================================================
+    # STEPS: The sequence of actions in this job
+    # ============================================================
     steps:
+      # --- STEP 1: Checkout Code ---
+      # Downloads your repository code into the GitHub Actions runner
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # --- STEP 2: Build Docker Image ---
+      # Builds the backend Docker image using the Dockerfile in ./backend
+      # This image becomes the target for the security scan.
       - name: Build Backend Docker image
         run: |
           docker build -t backend:latest ./backend
 
+      # --- STEP 3: Run Trivy Vulnerability Scan ---
+      # Uses the official Trivy action to scan the built image.
+      # Outputs the results as JSON so we can parse them.
       - name: Run Trivy vulnerability scan
-        id: trivy
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'backend:latest'
-          format: 'json'
-          output: 'trivy-output.json'
-          severity: 'CRITICAL,HIGH'
+          image-ref: 'backend:latest'           # Scan this image
+          format: 'json'                        # Output format (for parsing)
+          output: 'trivy-output.json'           # Save results to this file
+          severity: 'CRITICAL,HIGH'             # Only scan Critical and High CVEs
 
-      - name: Post findings to Compliance Hub API
-        env:
-          API_URL: ${{ secrets.COMPLIANCE_API_URL }}
+      # --- STEP 4: Create Python Script for Posting Findings ---
+      # Writes a Python script to the runner's file system.
+      # This script reads trivy-output.json and POSTs it to the API.
+      - name: Create Python script for posting findings
         run: |
-          # Write the Python script to a temporary file
-          cat << 'EOF' > /tmp/trivy_post.py
+          cat > post_findings.py << 'EOF'
+          # Imports for handling JSON, OS, and making HTTP requests
           import json
           import os
           import requests
 
+          # Get the API URL from the environment variable (set in Step 6)
           api_url = os.environ.get('API_URL', 'http://localhost:3500/api/findings')
 
+          # Try to open the Trivy output file
           try:
               with open('trivy-output.json', 'r') as f:
                   data = json.load(f)
           except FileNotFoundError:
-              print('❌ No trivy-output.json found. Skipping API call.')
+              # If the file doesn't exist, exit gracefully
+              print('❌ No trivy-output.json found.')
               exit(0)
 
+          # Counter for successfully added findings
           count = 0
+
+          # Loop through the scan results
           for result in data.get('Results', []):
               for vuln in result.get('Vulnerabilities', []):
                   severity = vuln.get('Severity', 'MEDIUM')
+                  
+                  # Only process CRITICAL and HIGH findings
                   if severity in ['CRITICAL', 'HIGH']:
-                      # Map severity to proper case (Critical, High)
+                      # Capitalize severity (CRITICAL -> Critical) to match backend schema
                       mapped_severity = severity.capitalize()
+                      
+                      # Build the description string
                       description = f"{vuln.get('VulnerabilityID')} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})"
                       
+                      # Prepare the JSON payload for the backend
                       payload = {
                           'description': description,
                           'severity': mapped_severity,
@@ -64,22 +105,42 @@ jobs:
                           'remediated': False
                       }
                       
+                      # Send the POST request to the Compliance Hub
                       try:
                           response = requests.post(api_url, json=payload)
-                          if response.status_code == 201 or response.status_code == 200:
+                          # If successful (200 or 201), count it and print success
+                          if response.status_code in [200, 201]:
                               count += 1
                               print(f'✅ Added: {description[:50]}...')
                           else:
-                              print(f'❌ Failed to post: {response.status_code} - {response.text}')
+                              # Print failure if status code is unexpected
+                              print(f'❌ Failed: {response.status_code}')
                       except Exception as e:
+                          # Print any network/connection errors
                           print(f'❌ Error: {e}')
           
+          # Print the total number of findings added
           print(f'🎯 Added {count} findings to Compliance Hub.')
           EOF
 
-          # Execute the Python script
-          python3 /tmp/trivy_post.py
+      # --- STEP 5: Install Python Dependencies ---
+      # Installs the 'requests' library needed to make HTTP calls in Python
+      - name: Install Python dependencies
+        run: |
+          pip install requests
 
+      # --- STEP 6: Post findings to Compliance Hub API ---
+      # Runs the Python script.
+      # The API_URL is injected securely from GitHub Secrets.
+      - name: Post findings to Compliance Hub API
+        env:
+          API_URL: ${{ secrets.COMPLIANCE_API_URL }}   # Secret stored in GitHub
+        run: |
+          python3 post_findings.py
+
+      # --- STEP 7: Upload Trivy report (Optional) ---
+      # Uploads the JSON report as an artifact so you can download it
+      # from the GitHub Actions run page for manual inspection.
       - name: Upload Trivy report (optional)
         uses: actions/upload-artifact@v4
         with:
