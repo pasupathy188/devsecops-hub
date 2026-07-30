@@ -17,7 +17,7 @@ function App() {
       try {
         setLoading(true);
         const response = await fetch(API_URL);
-        if (!response.ok) throw new Error(HTTP error! status: );
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         setFindings(data);
       } catch (err) {
@@ -32,29 +32,29 @@ function App() {
 
   const updateFinding = async (id, updates) => {
     try {
-      const response = await fetch(${API_URL}/, {
+      const response = await fetch(`${API_URL}/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      if (!response.ok) throw new Error(HTTP error! status: );
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setFindings(prev => prev.map(f => f._id === data._id ? data : f));
     } catch (err) {
       console.error('Error updating finding:', err);
-      setError(Failed to update: );
+      setError(`Failed to update: ${err.message}`);
     }
   };
 
   const deleteFinding = async (id) => {
     if (!window.confirm('Are you sure you want to delete this finding?')) return;
     try {
-      const response = await fetch(${API_URL}/, { method: 'DELETE' });
-      if (!response.ok) throw new Error(HTTP error! status: );
+      const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       setFindings(prev => prev.filter(f => f._id !== id));
     } catch (err) {
       console.error('Error deleting finding:', err);
-      setError(Failed to delete: );
+      setError(`Failed to delete: ${err.message}`);
     }
   };
 
@@ -87,10 +87,10 @@ function App() {
     return map[sev] || '#6b7280';
   };
 
-  const getFindingId = (index) => V;
+  const getFindingId = (index) => `V${String(index + 1).padStart(3, '0')}`;
 
   return (
-    <div className={pp }>
+    <div className={`app ${darkMode ? 'dark' : ''}`}>
       <header className="app-header">
         <div className="header-content">
           <div className="logo-section">
@@ -100,7 +100,7 @@ function App() {
           <div className="header-actions">
             <span className="status-badge">
               <span className="status-dot"></span>
-              {loading ? 'Loading...' : ${total} findings}
+              {loading ? 'Loading...' : `${total} findings`}
             </span>
             <button className="theme-toggle" onClick={() => setDarkMode(!darkMode)}>
               {darkMode ? '☀️' : '🌙'}
