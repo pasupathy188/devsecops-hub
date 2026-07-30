@@ -74,12 +74,12 @@ function App() {
 
   const getStatusBadge = (status) => {
     const colors = {
-      'Open': { bg: '#fee2e2', color: '#dc2626' },
-      'In Progress': { bg: '#fef3c7', color: '#d97706' },
-      'Resolved': { bg: '#d1fae5', color: '#059669' },
-      'Verified': { bg: '#dbeafe', color: '#2563eb' }
+      'Open': { bg: '#fef2f2', color: '#dc2626', dot: '#dc2626' },
+      'In Progress': { bg: '#fffbeb', color: '#d97706', dot: '#d97706' },
+      'Resolved': { bg: '#ecfdf5', color: '#059669', dot: '#059669' },
+      'Verified': { bg: '#eff6ff', color: '#2563eb', dot: '#2563eb' }
     };
-    return colors[status] || { bg: '#f3f4f6', color: '#6b7280' };
+    return colors[status] || { bg: '#f3f4f6', color: '#6b7280', dot: '#6b7280' };
   };
 
   const getSeverityColor = (sev) => {
@@ -91,146 +91,178 @@ function App() {
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
-      <header className="app-header">
-        <div className="header-content">
-          <div className="logo-section">
-            <span className="logo-icon">🛡️</span>
-            <h1>DevSecOps Compliance Hub</h1>
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <span className="sidebar-logo">🛡️</span>
+          <span className="sidebar-title">Compliance</span>
+        </div>
+        <nav className="sidebar-nav">
+          <a href="#" className="nav-item active">
+            <span className="nav-icon">📊</span>
+            Dashboard
+          </a>
+          <a href="#" className="nav-item">
+            <span className="nav-icon">🔍</span>
+            Findings
+          </a>
+          <a href="#" className="nav-item">
+            <span className="nav-icon">📋</span>
+            Scans
+          </a>
+          <a href="#" className="nav-item">
+            <span className="nav-icon">⚙️</span>
+            Settings
+          </a>
+        </nav>
+        <div className="sidebar-footer">
+          <button className="theme-toggle-btn" onClick={() => setDarkMode(!darkMode)}>
+            {darkMode ? '☀️' : '🌙'}
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="main-content">
+        <header className="top-header">
+          <div>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">Real-time security compliance overview</p>
           </div>
-          <div className="header-actions">
-            <span className="status-badge">
-              <span className="status-dot"></span>
-              {loading ? 'Loading...' : `${total} findings`}
+          <div className="header-right">
+            <span className="live-badge">
+              <span className="live-dot"></span> Live
             </span>
-            <button className="theme-toggle" onClick={() => setDarkMode(!darkMode)}>
-              {darkMode ? '☀️' : '🌙'}
-            </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="score-section">
-        <div className="score-ring">
-          <svg viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="54" fill="none" stroke="#e5e7eb" strokeWidth="12" />
-            <circle
-              cx="60"
-              cy="60"
-              r="54"
-              fill="none"
-              stroke={score > 70 ? '#22c55e' : score > 40 ? '#eab308' : '#dc2626'}
-              strokeWidth="12"
-              strokeDasharray="339.292"
-              strokeDashoffset={339.292 - (score / 100) * 339.292}
-              strokeLinecap="round"
-              transform="rotate(-90 60 60)"
-            />
-            <text x="60" y="60" textAnchor="middle" dy="0.35em" className="score-text">{score}%</text>
-          </svg>
-          <div className="score-label">Compliance Score</div>
-        </div>
-
-        <div className="stats-grid">
+        {/* Stats Grid */}
+        <section className="stats-grid">
           <div className="stat-card">
-            <div className="stat-number">{total}</div>
-            <div className="stat-label">Total</div>
+            <div className="stat-icon">📌</div>
+            <div className="stat-info">
+              <span className="stat-number">{total}</span>
+              <span className="stat-label">Total Findings</span>
+            </div>
           </div>
           <div className="stat-card critical">
-            <div className="stat-number">{criticalCount}</div>
-            <div className="stat-label">Critical</div>
+            <div className="stat-icon">🔴</div>
+            <div className="stat-info">
+              <span className="stat-number">{criticalCount}</span>
+              <span className="stat-label">Critical</span>
+            </div>
           </div>
           <div className="stat-card open">
-            <div className="stat-number">{openCount}</div>
-            <div className="stat-label">Open</div>
+            <div className="stat-icon">🟡</div>
+            <div className="stat-info">
+              <span className="stat-number">{openCount}</span>
+              <span className="stat-label">Open</span>
+            </div>
           </div>
           <div className="stat-card resolved">
-            <div className="stat-number">{resolvedCount}</div>
-            <div className="stat-label">Resolved</div>
+            <div className="stat-icon">✅</div>
+            <div className="stat-info">
+              <span className="stat-number">{resolvedCount}</span>
+              <span className="stat-label">Resolved</span>
+            </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div className="filter-bar">
-        <input
-          type="text"
-          className="search-input"
-          placeholder="🔍 Search findings..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-        <select className="filter-select" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
-          <option value="All">All Severities</option>
-          <option value="Critical">🔴 Critical</option>
-          <option value="High">🟠 High</option>
-          <option value="Medium">🟡 Medium</option>
-          <option value="Low">🟢 Low</option>
-        </select>
-        <select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="All">All Statuses</option>
-          <option value="Open">Open</option>
-          <option value="In Progress">In Progress</option>
-          <option value="Resolved">Resolved</option>
-          <option value="Verified">Verified</option>
-        </select>
-        <span className="filter-results">{filteredFindings.length} findings</span>
-      </div>
+        {/* Compliance Score Bar */}
+        <section className="score-section">
+          <div className="score-header">
+            <span className="score-title">Compliance Score</span>
+            <span className="score-percentage">{score}%</span>
+          </div>
+          <div className="score-track">
+            <div className="score-fill" style={{ width: `${score}%`, backgroundColor: score > 70 ? '#22c55e' : score > 40 ? '#eab308' : '#dc2626' }}></div>
+          </div>
+        </section>
 
-      <div className="table-container">
-        {error && <div className="error-message">❌ {error}</div>}
-        <table className="findings-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Finding</th>
-              <th>Severity</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan="5" className="loading-message">⏳ Loading findings...</td></tr>
-            ) : filteredFindings.length === 0 ? (
-              <tr><td colSpan="5" className="empty-message">✅ No findings match your filters.</td></tr>
-            ) : (
-              filteredFindings.map((finding, index) => {
-                const statusStyle = getStatusBadge(finding.status);
-                return (
-                  <tr key={finding._id} className={finding.remediated ? 'remediated-row' : ''}>
-                    <td>{getFindingId(index)}</td>
-                    <td>{finding.description}</td>
-                    <td>
-                      <span className="severity-badge" style={{ backgroundColor: getSeverityColor(finding.severity) }}>
-                        {finding.severity}
-                      </span>
-                    </td>
-                    <td>
-                      <select
-                        className="status-select"
-                        style={{ backgroundColor: statusStyle.bg, color: statusStyle.color, borderColor: statusStyle.color }}
-                        value={finding.status}
-                        onChange={(e) => updateFinding(finding._id, {
-                          status: e.target.value,
-                          remediated: e.target.value === 'Resolved' || e.target.value === 'Verified'
-                        })}
-                      >
-                        <option value="Open">Open</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Resolved">Resolved</option>
-                        <option value="Verified">Verified</option>
-                      </select>
-                    </td>
-                    <td className="actions-cell">
-                      <button className="delete-btn" onClick={() => deleteFinding(finding._id)} title="Delete">🗑️</button>
-                      {finding.remediated && <span className="remediated-check">✅</span>}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+        {/* Filters */}
+        <section className="filter-section">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search findings..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <select className="filter-select" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
+            <option value="All">All Severities</option>
+            <option value="Critical">Critical</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+          </select>
+          <select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="All">All Statuses</option>
+            <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Verified">Verified</option>
+          </select>
+          <span className="result-count">{filteredFindings.length} findings</span>
+        </section>
+
+        {/* Table */}
+        <section className="table-section">
+          <table className="findings-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Finding</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="5" className="empty-message">Loading...</td></tr>
+              ) : filteredFindings.length === 0 ? (
+                <tr><td colSpan="5" className="empty-message">No findings match your filters.</td></tr>
+              ) : (
+                filteredFindings.map((finding, index) => {
+                  const statusStyle = getStatusBadge(finding.status);
+                  return (
+                    <tr key={finding._id} className={finding.remediated ? 'remediated' : ''}>
+                      <td>{getFindingId(index)}</td>
+                      <td>{finding.description}</td>
+                      <td>
+                        <span className="severity-dot" style={{ backgroundColor: getSeverityColor(finding.severity) }}></span>
+                        <span className="severity-label">{finding.severity}</span>
+                      </td>
+                      <td>
+                        <span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>
+                          <span className="status-dot-small" style={{ backgroundColor: statusStyle.dot }}></span>
+                          {finding.status}
+                        </span>
+                      </td>
+                      <td>
+                        <select
+                          className="status-select-mini"
+                          value={finding.status}
+                          onChange={(e) => updateFinding(finding._id, {
+                            status: e.target.value,
+                            remediated: e.target.value === 'Resolved' || e.target.value === 'Verified'
+                          })}
+                        >
+                          <option value="Open">Open</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Resolved">Resolved</option>
+                          <option value="Verified">Verified</option>
+                        </select>
+                        <button className="delete-btn-mini" onClick={() => deleteFinding(finding._id)}>🗑️</button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </section>
+      </main>
     </div>
   );
 }
