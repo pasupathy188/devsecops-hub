@@ -110,6 +110,15 @@ app.delete('/api/findings/:id', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// GET: Fetch all scan reports
+app.get('/api/scans', async (req, res) => {
+    try {
+        const scans = await Scan.find().sort({ scannedAt: -1 });
+        res.json(scans);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // --- Start the Server ---
 const PORT = 3500;
