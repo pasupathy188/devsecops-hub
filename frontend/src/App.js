@@ -13,7 +13,10 @@ const ICONS = {
 };
 
 function App() {
+  // --- Page state ---
   const [page, setPage] = useState('dashboard');
+
+  // --- Findings state ---
   const [findings, setFindings] = useState([]);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,8 +25,14 @@ function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // --- Scans state ---
+  const [scans, setScans] = useState([]);
+  const [scansLoading, setScansLoading] = useState(false);
+  const [scansError, setScansError] = useState('');
+
   const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3500/api/findings';
 
+  // --- Fetch findings ---
   useEffect(() => {
     const fetchFindings = async () => {
       try {
@@ -42,6 +51,28 @@ function App() {
     fetchFindings();
   }, [API_URL]);
 
+  // --- Fetch scans (when page changes to 'scans') ---
+  useEffect(() => {
+    if (page === 'scans') {
+      const fetchScans = async () => {
+        try {
+          setScansLoading(true);
+          const response = await fetch(`${API_URL.replace('/findings', '/scans')}`);
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const data = await response.json();
+          setScans(data);
+        } catch (err) {
+          console.error('Error fetching scans:', err);
+          setScansError('Failed to load scan history.');
+        } finally {
+          setScansLoading(false);
+        }
+      };
+      fetchScans();
+    }
+  }, [page, API_URL]);
+
+  // --- Update finding ---
   const updateFinding = async (id, updates) => {
     try {
       const response = await fetch(`${API_URL}/${id}`, {
@@ -58,6 +89,7 @@ function App() {
     }
   };
 
+  // --- Delete finding ---
   const deleteFinding = async (id) => {
     if (!window.confirm('Delete this finding? This cannot be undone.')) return;
     try {
@@ -70,6 +102,12 @@ function App() {
     }
   };
 
+  // --- Download report (Scans) ---
+  const downloadReport = (scanId) => {
+    window.open(`${API_URL.replace('/findings', '/scans')}/${scanId}/download`, '_blank');
+  };
+
+  // --- Helpers ---
   const filteredFindings = findings.filter(f => {
     const matchesSearch = f.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSeverity = filterSeverity === 'All' || f.severity === filterSeverity;
@@ -101,6 +139,12 @@ function App() {
 
   const getFindingId = (index) => `VULN-${String(index + 1).padStart(3, '0')}`;
 
+  // --- Navigation handler ---
+  const navigateTo = (pageName, e) => {
+    e.preventDefault();
+    setPage(pageName);
+  };
+
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
       <aside className="sidebar">
@@ -109,32 +153,16 @@ function App() {
           <span className="sidebar-title">Compliance</span>
         </div>
         <nav className="sidebar-nav">
-          <a
-            href="#"
-            className={`nav-item ${page === 'dashboard' ? 'active' : ''}`}
-            onClick={(e) => { e.preventDefault(); setPage('dashboard'); }}
-          >
+          <a href="#" className={`nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={(e) => navigateTo('dashboard', e)}>
             <span className="nav-icon">{ICONS.dashboard}</span>Dashboard
           </a>
-          <a
-            href="#"
-            className={`nav-item ${page === 'findings' ? 'active' : ''}`}
-            onClick={(e) => { e.preventDefault(); setPage('findings'); }}
-          >
+          <a href="#" className={`nav-item ${page === 'findings' ? 'active' : ''}`} onClick={(e) => navigateTo('findings', e)}>
             <span className="nav-icon">{ICONS.findings}</span>Findings
           </a>
-          <a
-            href="#"
-            className={`nav-item ${page === 'scans' ? 'active' : ''}`}
-            onClick={(e) => { e.preventDefault(); setPage('scans'); }}
-          >
+          <a href="#" className={`nav-item ${page === 'scans' ? 'active' : ''}`} onClick={(e) => navigateTo('scans', e)}>
             <span className="nav-icon">{ICONS.scans}</span>Scans
           </a>
-          <a
-            href="#"
-            className={`nav-item ${page === 'settings' ? 'active' : ''}`}
-            onClick={(e) => { e.preventDefault(); setPage('settings'); }}
-          >
+          <a href="#" className={`nav-item ${page === 'settings' ? 'active' : ''}`} onClick={(e) => navigateTo('settings', e)}>
             <span className="nav-icon">{ICONS.settings}</span>Settings
           </a>
         </nav>
@@ -146,7 +174,7 @@ function App() {
       </aside>
 
       <main className="main-content">
-        {/* Dashboard Page */}
+        {/* ===== DASHBOARD ===== */}
         {page === 'dashboard' && (
           <>
             <header className="top-header">
@@ -158,22 +186,10 @@ function App() {
             </header>
             {error && <div className="error-banner">{error}</div>}
             <section className="stats-grid">
-              <div className="stat-card">
-                <span className="stat-number">{total}</span>
-                <span className="stat-label">Total findings</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-number accent-critical">{criticalCount}</span>
-                <span className="stat-label">Critical</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-number accent-open">{openCount}</span>
-                <span className="stat-label">Open</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-number accent-resolved">{resolvedCount}</span>
-                <span className="stat-label">Resolved</span>
-              </div>
+              <div className="stat-card"><span className="stat-number">{total}</span><span className="stat-label">Total findings</span></div>
+              <div className="stat-card"><span className="stat-number accent-critical">{criticalCount}</span><span className="stat-label">Critical</span></div>
+              <div className="stat-card"><span className="stat-number accent-open">{openCount}</span><span className="stat-label">Open</span></div>
+              <div className="stat-card"><span className="stat-number accent-resolved">{resolvedCount}</span><span className="stat-label">Resolved</span></div>
             </section>
             <section className="score-section">
               <div className="score-header">
@@ -187,17 +203,11 @@ function App() {
           </>
         )}
 
-        {/* Findings Page (shows the table with filters) */}
+        {/* ===== FINDINGS ===== */}
         {(page === 'findings' || page === 'dashboard') && (
           <>
             <section className="filter-section">
-              <input
-                type="text"
-                className="search-input"
-                placeholder="Search findings..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+              <input type="text" className="search-input" placeholder="Search findings..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               <select className="filter-select" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
                 <option value="All">All severities</option>
                 <option value="Critical">Critical</option>
@@ -218,13 +228,7 @@ function App() {
             <section className="table-section">
               <table className="findings-table">
                 <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Finding</th>
-                    <th>Severity</th>
-                    <th>Status</th>
-                    <th></th>
-                  </tr>
+                  <tr><th>ID</th><th>Finding</th><th>Severity</th><th>Status</th><th></th></tr>
                 </thead>
                 <tbody>
                   {loading ? (
@@ -235,30 +239,13 @@ function App() {
                     filteredFindings.map((finding, index) => {
                       const statusStyle = getStatusStyle(finding.status);
                       return (
-                        <tr
-                          key={finding._id}
-                          className={finding.remediated ? 'remediated' : ''}
-                          style={{ borderLeft: `3px solid ${getSeverityColor(finding.severity)}` }}
-                        >
+                        <tr key={finding._id} className={finding.remediated ? 'remediated' : ''} style={{ borderLeft: `3px solid ${getSeverityColor(finding.severity)}` }}>
                           <td className="mono-cell">{getFindingId(index)}</td>
                           <td>{finding.description}</td>
-                          <td className="mono-cell" style={{ color: getSeverityColor(finding.severity) }}>
-                            {finding.severity}
-                          </td>
-                          <td>
-                            <span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>
-                              {finding.status}
-                            </span>
-                          </td>
+                          <td className="mono-cell" style={{ color: getSeverityColor(finding.severity) }}>{finding.severity}</td>
+                          <td><span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>{finding.status}</span></td>
                           <td className="actions-cell">
-                            <select
-                              className="status-select-mini"
-                              value={finding.status}
-                              onChange={(e) => updateFinding(finding._id, {
-                                status: e.target.value,
-                                remediated: e.target.value === 'Resolved' || e.target.value === 'Verified'
-                              })}
-                            >
+                            <select className="status-select-mini" value={finding.status} onChange={(e) => updateFinding(finding._id, { status: e.target.value, remediated: e.target.value === 'Resolved' || e.target.value === 'Verified' })}>
                               <option value="Open">Open</option>
                               <option value="In Progress">In Progress</option>
                               <option value="Resolved">Resolved</option>
@@ -276,7 +263,7 @@ function App() {
           </>
         )}
 
-        {/* Scans Page (Placeholder) */}
+        {/* ===== SCANS ===== */}
         {page === 'scans' && (
           <>
             <header className="top-header">
@@ -284,18 +271,56 @@ function App() {
                 <h1 className="page-title">Scans</h1>
                 <p className="page-subtitle">Historical vulnerability scan reports</p>
               </div>
+              <span className="live-badge"><span className="live-dot"></span>{scans.length} scans</span>
             </header>
-            <div className="placeholder-card">
-              <p style={{ color: '#6B7280', textAlign: 'center', padding: '64px 0' }}>
-                📋 Scan history will be displayed here.
-                <br />
-                <span style={{ fontSize: '13px' }}>Each scan stores the full Trivy report for audit.</span>
-              </p>
-            </div>
+            {scansError && <div className="error-banner">{scansError}</div>}
+
+            <section className="table-section">
+              {scansLoading ? (
+                <div className="empty-message">Loading scan history…</div>
+              ) : scans.length === 0 ? (
+                <div className="empty-message">
+                  📋 No scans recorded yet.
+                  <br />
+                  <span style={{ fontSize: '13px', color: '#9095A3' }}>
+                    Run <code>.\auto-trivy.ps1</code> locally or push code to trigger a scan.
+                  </span>
+                </div>
+              ) : (
+                <table className="findings-table">
+                  <thead>
+                    <tr>
+                      <th>Scan ID</th>
+                      <th>Date</th>
+                      <th>Image</th>
+                      <th>Total</th>
+                      <th>Critical</th>
+                      <th>High</th>
+                      <th>Report</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scans.map((scan, index) => (
+                      <tr key={scan._id}>
+                        <td className="mono-cell">SCAN-{String(index + 1).padStart(3, '0')}</td>
+                        <td>{new Date(scan.scannedAt).toLocaleString()}</td>
+                        <td>{scan.imageName || 'backend:latest'}</td>
+                        <td>{scan.totalVulns || 0}</td>
+                        <td className="mono-cell" style={{ color: '#DC2626' }}>{scan.critical || 0}</td>
+                        <td className="mono-cell" style={{ color: '#EA580C' }}>{scan.high || 0}</td>
+                        <td>
+                          <button className="download-btn" onClick={() => downloadReport(scan._id)}>📥 JSON</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
           </>
         )}
 
-        {/* Settings Page (Placeholder) */}
+        {/* ===== SETTINGS ===== */}
         {page === 'settings' && (
           <>
             <header className="top-header">
