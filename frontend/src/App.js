@@ -51,13 +51,13 @@ function App() {
     fetchFindings();
   }, [API_URL]);
 
-  // --- Fetch scans (when page changes to 'scans') ---
+  // --- Fetch scans when navigating to Scans page ---
   useEffect(() => {
     if (page === 'scans') {
       const fetchScans = async () => {
         try {
           setScansLoading(true);
-          const response = await fetch(`${API_URL.replace('/findings', '/scans')}`);
+          const response = await fetch(API_URL.replace('/findings', '/scans'));
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
           const data = await response.json();
           setScans(data);
