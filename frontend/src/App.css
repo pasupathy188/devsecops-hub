@@ -159,3 +159,11 @@ body {
   .filter-section { flex-direction: column; align-items: stretch; }
   .result-count { margin-left: 0; }
 }
+.placeholder-card {
+  background: #ffffff;
+  border: 1px solid #E4E7EC;
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 16px;
+}
+.app.dark .placeholder-card { background: #12161F; border-color: #1F2430; }

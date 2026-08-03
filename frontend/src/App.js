@@ -1,5 +1,4 @@
-﻿// App.js
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import './App.css';
 
 const ICONS = {
@@ -14,6 +13,7 @@ const ICONS = {
 };
 
 function App() {
+  const [page, setPage] = useState('dashboard');
   const [findings, setFindings] = useState([]);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -109,10 +109,34 @@ function App() {
           <span className="sidebar-title">Compliance</span>
         </div>
         <nav className="sidebar-nav">
-          <a href="#" className="nav-item active"><span className="nav-icon">{ICONS.dashboard}</span>Dashboard</a>
-          <a href="#" className="nav-item"><span className="nav-icon">{ICONS.findings}</span>Findings</a>
-          <a href="#" className="nav-item"><span className="nav-icon">{ICONS.scans}</span>Scans</a>
-          <a href="#" className="nav-item"><span className="nav-icon">{ICONS.settings}</span>Settings</a>
+          <a
+            href="#"
+            className={`nav-item ${page === 'dashboard' ? 'active' : ''}`}
+            onClick={(e) => { e.preventDefault(); setPage('dashboard'); }}
+          >
+            <span className="nav-icon">{ICONS.dashboard}</span>Dashboard
+          </a>
+          <a
+            href="#"
+            className={`nav-item ${page === 'findings' ? 'active' : ''}`}
+            onClick={(e) => { e.preventDefault(); setPage('findings'); }}
+          >
+            <span className="nav-icon">{ICONS.findings}</span>Findings
+          </a>
+          <a
+            href="#"
+            className={`nav-item ${page === 'scans' ? 'active' : ''}`}
+            onClick={(e) => { e.preventDefault(); setPage('scans'); }}
+          >
+            <span className="nav-icon">{ICONS.scans}</span>Scans
+          </a>
+          <a
+            href="#"
+            className={`nav-item ${page === 'settings' ? 'active' : ''}`}
+            onClick={(e) => { e.preventDefault(); setPage('settings'); }}
+          >
+            <span className="nav-icon">{ICONS.settings}</span>Settings
+          </a>
         </nav>
         <div className="sidebar-footer">
           <button className="theme-toggle-btn" onClick={() => setDarkMode(!darkMode)}>
@@ -122,128 +146,173 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <header className="top-header">
-          <div>
-            <h1 className="page-title">Dashboard</h1>
-            <p className="page-subtitle">Security compliance overview</p>
-          </div>
-          <span className="live-badge"><span className="live-dot"></span>Live</span>
-        </header>
+        {/* Dashboard Page */}
+        {page === 'dashboard' && (
+          <>
+            <header className="top-header">
+              <div>
+                <h1 className="page-title">Dashboard</h1>
+                <p className="page-subtitle">Security compliance overview</p>
+              </div>
+              <span className="live-badge"><span className="live-dot"></span>Live</span>
+            </header>
+            {error && <div className="error-banner">{error}</div>}
+            <section className="stats-grid">
+              <div className="stat-card">
+                <span className="stat-number">{total}</span>
+                <span className="stat-label">Total findings</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-number accent-critical">{criticalCount}</span>
+                <span className="stat-label">Critical</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-number accent-open">{openCount}</span>
+                <span className="stat-label">Open</span>
+              </div>
+              <div className="stat-card">
+                <span className="stat-number accent-resolved">{resolvedCount}</span>
+                <span className="stat-label">Resolved</span>
+              </div>
+            </section>
+            <section className="score-section">
+              <div className="score-header">
+                <span className="score-title">Compliance score</span>
+                <span className="score-percentage">{score}%</span>
+              </div>
+              <div className="score-track">
+                <div className="score-fill" style={{ width: `${score}%`, backgroundColor: score > 70 ? '#16A34A' : score > 40 ? '#CA8A04' : '#DC2626' }}></div>
+              </div>
+            </section>
+          </>
+        )}
 
-        {error && <div className="error-banner">{error}</div>}
+        {/* Findings Page (shows the table with filters) */}
+        {(page === 'findings' || page === 'dashboard') && (
+          <>
+            <section className="filter-section">
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Search findings..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <select className="filter-select" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
+                <option value="All">All severities</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+              <select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="All">All statuses</option>
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Verified">Verified</option>
+              </select>
+              <span className="result-count">{filteredFindings.length} results</span>
+            </section>
 
-        <section className="stats-grid">
-          <div className="stat-card">
-            <span className="stat-number">{total}</span>
-            <span className="stat-label">Total findings</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number accent-critical">{criticalCount}</span>
-            <span className="stat-label">Critical</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number accent-open">{openCount}</span>
-            <span className="stat-label">Open</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number accent-resolved">{resolvedCount}</span>
-            <span className="stat-label">Resolved</span>
-          </div>
-        </section>
-
-        <section className="score-section">
-          <div className="score-header">
-            <span className="score-title">Compliance score</span>
-            <span className="score-percentage">{score}%</span>
-          </div>
-          <div className="score-track">
-            <div className="score-fill" style={{ width: `${score}%`, backgroundColor: score > 70 ? '#16A34A' : score > 40 ? '#CA8A04' : '#DC2626' }}></div>
-          </div>
-        </section>
-
-        <section className="filter-section">
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Search findings..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <select className="filter-select" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
-            <option value="All">All severities</option>
-            <option value="Critical">Critical</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-          </select>
-          <select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-            <option value="All">All statuses</option>
-            <option value="Open">Open</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Resolved">Resolved</option>
-            <option value="Verified">Verified</option>
-          </select>
-          <span className="result-count">{filteredFindings.length} results</span>
-        </section>
-
-        <section className="table-section">
-          <table className="findings-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Finding</th>
-                <th>Severity</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="5" className="empty-message">Loading findings…</td></tr>
-              ) : filteredFindings.length === 0 ? (
-                <tr><td colSpan="5" className="empty-message">No findings match your filters.</td></tr>
-              ) : (
-                filteredFindings.map((finding, index) => {
-                  const statusStyle = getStatusStyle(finding.status);
-                  return (
-                    <tr
-                      key={finding._id}
-                      className={finding.remediated ? 'remediated' : ''}
-                      style={{ borderLeft: `3px solid ${getSeverityColor(finding.severity)}` }}
-                    >
-                      <td className="mono-cell">{getFindingId(index)}</td>
-                      <td>{finding.description}</td>
-                      <td className="mono-cell" style={{ color: getSeverityColor(finding.severity) }}>
-                        {finding.severity}
-                      </td>
-                      <td>
-                        <span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>
-                          {finding.status}
-                        </span>
-                      </td>
-                      <td className="actions-cell">
-                        <select
-                          className="status-select-mini"
-                          value={finding.status}
-                          onChange={(e) => updateFinding(finding._id, {
-                            status: e.target.value,
-                            remediated: e.target.value === 'Resolved' || e.target.value === 'Verified'
-                          })}
+            <section className="table-section">
+              <table className="findings-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Finding</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="5" className="empty-message">Loading findings…</td></tr>
+                  ) : filteredFindings.length === 0 ? (
+                    <tr><td colSpan="5" className="empty-message">No findings match your filters.</td></tr>
+                  ) : (
+                    filteredFindings.map((finding, index) => {
+                      const statusStyle = getStatusStyle(finding.status);
+                      return (
+                        <tr
+                          key={finding._id}
+                          className={finding.remediated ? 'remediated' : ''}
+                          style={{ borderLeft: `3px solid ${getSeverityColor(finding.severity)}` }}
                         >
-                          <option value="Open">Open</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Resolved">Resolved</option>
-                          <option value="Verified">Verified</option>
-                        </select>
-                        <button className="delete-btn-mini" onClick={() => deleteFinding(finding._id)}>{ICONS.trash}</button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </section>
+                          <td className="mono-cell">{getFindingId(index)}</td>
+                          <td>{finding.description}</td>
+                          <td className="mono-cell" style={{ color: getSeverityColor(finding.severity) }}>
+                            {finding.severity}
+                          </td>
+                          <td>
+                            <span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>
+                              {finding.status}
+                            </span>
+                          </td>
+                          <td className="actions-cell">
+                            <select
+                              className="status-select-mini"
+                              value={finding.status}
+                              onChange={(e) => updateFinding(finding._id, {
+                                status: e.target.value,
+                                remediated: e.target.value === 'Resolved' || e.target.value === 'Verified'
+                              })}
+                            >
+                              <option value="Open">Open</option>
+                              <option value="In Progress">In Progress</option>
+                              <option value="Resolved">Resolved</option>
+                              <option value="Verified">Verified</option>
+                            </select>
+                            <button className="delete-btn-mini" onClick={() => deleteFinding(finding._id)}>{ICONS.trash}</button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </section>
+          </>
+        )}
+
+        {/* Scans Page (Placeholder) */}
+        {page === 'scans' && (
+          <>
+            <header className="top-header">
+              <div>
+                <h1 className="page-title">Scans</h1>
+                <p className="page-subtitle">Historical vulnerability scan reports</p>
+              </div>
+            </header>
+            <div className="placeholder-card">
+              <p style={{ color: '#6B7280', textAlign: 'center', padding: '64px 0' }}>
+                📋 Scan history will be displayed here.
+                <br />
+                <span style={{ fontSize: '13px' }}>Each scan stores the full Trivy report for audit.</span>
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* Settings Page (Placeholder) */}
+        {page === 'settings' && (
+          <>
+            <header className="top-header">
+              <div>
+                <h1 className="page-title">Settings</h1>
+                <p className="page-subtitle">Configure compliance thresholds and integrations</p>
+              </div>
+            </header>
+            <div className="placeholder-card">
+              <p style={{ color: '#6B7280', textAlign: 'center', padding: '64px 0' }}>
+                ⚙️ Settings panel will be available soon.
+                <br />
+                <span style={{ fontSize: '13px' }}>Configure severity thresholds, alert destinations, and more.</span>
+              </p>
+            </div>
+          </>
+        )}
       </main>
     </div>
   );
