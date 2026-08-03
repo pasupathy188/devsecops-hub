@@ -13,10 +13,7 @@ const ICONS = {
 };
 
 function App() {
-  // --- Page state ---
   const [page, setPage] = useState('dashboard');
-
-  // --- Findings state ---
   const [findings, setFindings] = useState([]);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,34 +21,52 @@ function App() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // --- Scans state ---
   const [scans, setScans] = useState([]);
   const [scansLoading, setScansLoading] = useState(false);
   const [scansError, setScansError] = useState('');
 
   const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3500/api/findings';
-//scan API URL
+
+  // Fetch findings
   useEffect(() => {
-  if (page === 'scans') {
-    const fetchScans = async () => {
+    const fetchFindings = async () => {
       try {
-        setScansLoading(true);
-        const response = await fetch('https://devsecops-hub-8qlr.onrender.com/api/scans');
+        setLoading(true);
+        const response = await fetch(API_URL);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
-        setScans(data);
+        setFindings(data);
       } catch (err) {
-        console.error('Error fetching scans:', err);
-        setScansError('Failed to load scan history.');
+        console.error('Error fetching findings:', err);
+        setError('Failed to load findings.');
       } finally {
-        setScansLoading(false);
+        setLoading(false);
       }
     };
-    fetchScans();
-  }
-}, [page]);
+    fetchFindings();
+  }, [API_URL]);
 
-  // --- Update finding ---
+  // Fetch scans - HARDCODED URL
+  useEffect(() => {
+    if (page === 'scans') {
+      const fetchScans = async () => {
+        try {
+          setScansLoading(true);
+          const response = await fetch('https://devsecops-hub-8qlr.onrender.com/api/scans');
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+          const data = await response.json();
+          setScans(data);
+        } catch (err) {
+          console.error('Error fetching scans:', err);
+          setScansError('Failed to load scan history.');
+        } finally {
+          setScansLoading(false);
+        }
+      };
+      fetchScans();
+    }
+  }, [page]);
+
   const updateFinding = async (id, updates) => {
     try {
       const response = await fetch(`${API_URL}/${id}`, {
@@ -68,7 +83,6 @@ function App() {
     }
   };
 
-  // --- Delete finding ---
   const deleteFinding = async (id) => {
     if (!window.confirm('Delete this finding? This cannot be undone.')) return;
     try {
@@ -81,12 +95,10 @@ function App() {
     }
   };
 
-  // --- Download report (Scans) ---
   const downloadReport = (scanId) => {
-    window.open(`${API_URL.replace('/findings', '/scans')}/${scanId}/download`, '_blank');
+    window.open(`https://devsecops-hub-8qlr.onrender.com/api/scans/${scanId}/download`, '_blank');
   };
 
-  // --- Helpers ---
   const filteredFindings = findings.filter(f => {
     const matchesSearch = f.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSeverity = filterSeverity === 'All' || f.severity === filterSeverity;
@@ -118,7 +130,6 @@ function App() {
 
   const getFindingId = (index) => `VULN-${String(index + 1).padStart(3, '0')}`;
 
-  // --- Navigation handler ---
   const navigateTo = (pageName, e) => {
     e.preventDefault();
     setPage(pageName);
@@ -153,7 +164,7 @@ function App() {
       </aside>
 
       <main className="main-content">
-        {/* ===== DASHBOARD ===== */}
+        {/* DASHBOARD */}
         {page === 'dashboard' && (
           <>
             <header className="top-header">
@@ -171,18 +182,13 @@ function App() {
               <div className="stat-card"><span className="stat-number accent-resolved">{resolvedCount}</span><span className="stat-label">Resolved</span></div>
             </section>
             <section className="score-section">
-              <div className="score-header">
-                <span className="score-title">Compliance score</span>
-                <span className="score-percentage">{score}%</span>
-              </div>
-              <div className="score-track">
-                <div className="score-fill" style={{ width: `${score}%`, backgroundColor: score > 70 ? '#16A34A' : score > 40 ? '#CA8A04' : '#DC2626' }}></div>
-              </div>
+              <div className="score-header"><span className="score-title">Compliance score</span><span className="score-percentage">{score}%</span></div>
+              <div className="score-track"><div className="score-fill" style={{ width: `${score}%`, backgroundColor: score > 70 ? '#16A34A' : score > 40 ? '#CA8A04' : '#DC2626' }}></div></div>
             </section>
           </>
         )}
 
-        {/* ===== FINDINGS ===== */}
+        {/* FINDINGS */}
         {(page === 'findings' || page === 'dashboard') && (
           <>
             <section className="filter-section">
@@ -206,9 +212,7 @@ function App() {
 
             <section className="table-section">
               <table className="findings-table">
-                <thead>
-                  <tr><th>ID</th><th>Finding</th><th>Severity</th><th>Status</th><th></th></tr>
-                </thead>
+                <thead><tr><th>ID</th><th>Finding</th><th>Severity</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {loading ? (
                     <tr><td colSpan="5" className="empty-message">Loading findings…</td></tr>
@@ -242,7 +246,7 @@ function App() {
           </>
         )}
 
-        {/* ===== SCANS ===== */}
+        {/* SCANS */}
         {page === 'scans' && (
           <>
             <header className="top-header">
@@ -253,31 +257,17 @@ function App() {
               <span className="live-badge"><span className="live-dot"></span>{scans.length} scans</span>
             </header>
             {scansError && <div className="error-banner">{scansError}</div>}
-
             <section className="table-section">
               {scansLoading ? (
                 <div className="empty-message">Loading scan history…</div>
               ) : scans.length === 0 ? (
                 <div className="empty-message">
-                  📋 No scans recorded yet.
-                  <br />
-                  <span style={{ fontSize: '13px', color: '#9095A3' }}>
-                    Run <code>.\auto-trivy.ps1</code> locally or push code to trigger a scan.
-                  </span>
+                  📋 No scans recorded yet.<br />
+                  <span style={{ fontSize: '13px', color: '#9095A3' }}>Run .\auto-trivy.ps1 locally or push code to trigger a scan.</span>
                 </div>
               ) : (
                 <table className="findings-table">
-                  <thead>
-                    <tr>
-                      <th>Scan ID</th>
-                      <th>Date</th>
-                      <th>Image</th>
-                      <th>Total</th>
-                      <th>Critical</th>
-                      <th>High</th>
-                      <th>Report</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Scan ID</th><th>Date</th><th>Image</th><th>Total</th><th>Critical</th><th>High</th><th>Report</th></tr></thead>
                   <tbody>
                     {scans.map((scan, index) => (
                       <tr key={scan._id}>
@@ -287,9 +277,7 @@ function App() {
                         <td>{scan.totalVulns || 0}</td>
                         <td className="mono-cell" style={{ color: '#DC2626' }}>{scan.critical || 0}</td>
                         <td className="mono-cell" style={{ color: '#EA580C' }}>{scan.high || 0}</td>
-                        <td>
-                          <button className="download-btn" onClick={() => downloadReport(scan._id)}>📥 JSON</button>
-                        </td>
+                        <td><button className="download-btn" onClick={() => downloadReport(scan._id)}>📥 JSON</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -299,7 +287,7 @@ function App() {
           </>
         )}
 
-        {/* ===== SETTINGS ===== */}
+        {/* SETTINGS */}
         {page === 'settings' && (
           <>
             <header className="top-header">
@@ -309,11 +297,7 @@ function App() {
               </div>
             </header>
             <div className="placeholder-card">
-              <p style={{ color: '#6B7280', textAlign: 'center', padding: '64px 0' }}>
-                ⚙️ Settings panel will be available soon.
-                <br />
-                <span style={{ fontSize: '13px' }}>Configure severity thresholds, alert destinations, and more.</span>
-              </p>
+              <p style={{ color: '#6B7280', textAlign: 'center', padding: '64px 0' }}>⚙️ Settings panel will be available soon.<br /><span style={{ fontSize: '13px' }}>Configure severity thresholds, alert destinations, and more.</span></p>
             </div>
           </>
         )}
