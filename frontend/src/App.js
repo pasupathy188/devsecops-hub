@@ -51,26 +51,27 @@ function App() {
     fetchFindings();
   }, [API_URL]);
 
-  // --- Fetch scans when navigating to Scans page ---
-  useEffect(() => {
-    if (page === 'scans') {
-      const fetchScans = async () => {
-        try {
-          setScansLoading(true);
-          const response = await fetch(API_URL.replace('/findings', '/scans'));
-          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-          const data = await response.json();
-          setScans(data);
-        } catch (err) {
-          console.error('Error fetching scans:', err);
-          setScansError('Failed to load scan history.');
-        } finally {
-          setScansLoading(false);
-        }
-      };
-      fetchScans();
-    }
-  }, [page, API_URL]);
+ // --- Fetch scans when navigating to Scans page ---
+useEffect(() => {
+  if (page === 'scans') {
+    const fetchScans = async () => {
+      try {
+        setScansLoading(true);
+        // TEMPORARY: hardcoded URL to bypass env var issues
+        const response = await fetch('https://devsecops-hub-8qlr.onrender.com/api/scans');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        setScans(data);
+      } catch (err) {
+        console.error('Error fetching scans:', err);
+        setScansError('Failed to load scan history.');
+      } finally {
+        setScansLoading(false);
+      }
+    };
+    fetchScans();
+  }
+}, [page]);
 
   // --- Update finding ---
   const updateFinding = async (id, updates) => {
