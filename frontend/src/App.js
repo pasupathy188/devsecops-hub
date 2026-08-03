@@ -31,35 +31,13 @@ function App() {
   const [scansError, setScansError] = useState('');
 
   const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3500/api/findings';
-
-  // --- Fetch findings ---
+//scan API URL
   useEffect(() => {
-    const fetchFindings = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(API_URL);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        setFindings(data);
-      } catch (err) {
-        console.error('Error fetching findings:', err);
-        setError('Failed to load findings.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFindings();
-  }, [API_URL]);
-
- // --- Fetch scans when navigating to Scans page ---
-useEffect(() => {
   if (page === 'scans') {
     const fetchScans = async () => {
       try {
         setScansLoading(true);
-        // TEMPORARY: hardcoded URL to bypass env var issues
         const response = await fetch('https://devsecops-hub-8qlr.onrender.com/api/scans');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         setScans(data);
       } catch (err) {
