@@ -3,17 +3,18 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
-require('dotenv').config(); // Load environment variables from .env
+
+// Suppress Mongoose strictQuery warning
+mongoose.set('strictQuery', false);
 
 const app = express();
 const server = http.createServer(app);
-console.log('🔍 MONGO_URI from env:', process.env.MONGO_URI ? '✅ Present' : '❌ Missing');
 
-// Enable CORS and JSON parsing
+// --- Middleware ---
 app.use(cors());
 app.use(express.json());
 
-// --- Socket.io setup for REAL-TIME (Optional) ---
+// --- Socket.io setup (for real-time updates) ---
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -22,12 +23,16 @@ const io = new Server(server, {
 });
 
 // --- MongoDB Connection ---
-const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/compliance';
-mongoose.connect(mongoURI)
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/compliance';
+mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ Connected to MongoDB'))
     .catch(err => console.log('⚠️ MongoDB not running yet.', err));
 
-// --- Define the "Compliance Finding" Schema ---
+// ============================================================
+//  SCHEMAS & MODELS
+// ============================================================
+
+// --- Finding Schema ---
 const FindingSchema = new mongoose.Schema({
     description: { type: String, required: true },
     severity: { type: String, enum: ['Critical', 'High', 'Medium', 'Low'], default: 'Medium' },
@@ -41,63 +46,75 @@ const FindingSchema = new mongoose.Schema({
 });
 const Finding = mongoose.model('Finding', FindingSchema);
 
-// --- REST API Routes ---
+// --- Scan Schema (for raw Trivy reports) ---
+const ScanSchema = new mongoose.Schema({
+    imageName: { type: String, required: true, default: 'backend:latest' },
+    scannedAt: { type: Date, default: Date.now },
+    totalVulns: { type: Number, default: 0 },
+    critical: { type: Number, default: 0 },
+    high: { type: Number, default: 0 },
+    rawReport: { type: Object, required: true }
+});
+const Scan = mongoose.model('Scan', ScanSchema);
 
-// GET: Fetch all findings
+// ============================================================
+//  FINDINGS ROUTES (CRUD)
+// ============================================================
+
+// GET all findings (sorted newest first)
 app.get('/api/findings', async (req, res) => {
     try {
         const findings = await Finding.find().sort({ createdAt: -1 });
         res.json(findings);
     } catch (error) {
+        console.error('Error fetching findings:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// POST: Add a new finding
+// POST a new finding
 app.post('/api/findings', async (req, res) => {
     try {
         if (!req.body.description || req.body.description.trim() === '') {
             return res.status(400).json({ error: 'Description is required' });
         }
-
         const finding = new Finding({
             description: req.body.description.trim(),
             severity: req.body.severity || 'Medium',
             status: req.body.status || 'Open'
         });
-
         await finding.save();
         io.emit('finding_added', finding);
         res.status(201).json(finding);
     } catch (error) {
+        console.error('Error creating finding:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// PUT: Update finding (status or remediated)
+// PUT update a finding (status / remediated)
 app.put('/api/findings/:id', async (req, res) => {
     try {
         const finding = await Finding.findById(req.params.id);
         if (!finding) {
             return res.status(404).json({ error: 'Finding not found' });
         }
-        
         if (req.body.status !== undefined) {
             finding.status = req.body.status;
         }
         if (req.body.remediated !== undefined) {
             finding.remediated = req.body.remediated;
         }
-        
         await finding.save();
         io.emit('finding_updated', finding);
         res.json(finding);
     } catch (error) {
+        console.error('Error updating finding:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// DELETE: Remove a finding
+// DELETE a finding
 app.delete('/api/findings/:id', async (req, res) => {
     try {
         const finding = await Finding.findByIdAndDelete(req.params.id);
@@ -107,21 +124,76 @@ app.delete('/api/findings/:id', async (req, res) => {
         io.emit('finding_deleted', req.params.id);
         res.json({ message: 'Finding deleted successfully' });
     } catch (error) {
+        console.error('Error deleting finding:', error);
         res.status(500).json({ error: error.message });
     }
 });
-// GET: Fetch all scan reports
+
+// ============================================================
+//  SCANS ROUTES
+// ============================================================
+
+// GET all scan reports (sorted newest first)
 app.get('/api/scans', async (req, res) => {
     try {
         const scans = await Scan.find().sort({ scannedAt: -1 });
         res.json(scans);
     } catch (error) {
+        console.error('Error fetching scans:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// --- Start the Server ---
-const PORT = 3500;
+// POST a raw scan report (from Trivy)
+app.post('/api/scans', async (req, res) => {
+    try {
+        const rawReport = req.body;
+        // Count vulnerabilities
+        let total = 0, critical = 0, high = 0;
+        if (rawReport.Results) {
+            for (const result of rawReport.Results) {
+                for (const vuln of (result.Vulnerabilities || [])) {
+                    total++;
+                    if (vuln.Severity === 'CRITICAL') critical++;
+                    if (vuln.Severity === 'HIGH') high++;
+                }
+            }
+        }
+        const scan = new Scan({
+            imageName: rawReport.Metadata?.ImageName || 'backend:latest',
+            totalVulns: total,
+            critical,
+            high,
+            rawReport
+        });
+        await scan.save();
+        res.status(201).json({ message: 'Scan report stored', scanId: scan._id });
+    } catch (error) {
+        console.error('Error storing scan:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// OPTIONAL: Download raw report by ID (for the Scans page download button)
+app.get('/api/scans/:id/download', async (req, res) => {
+    try {
+        const scan = await Scan.findById(req.params.id);
+        if (!scan) {
+            return res.status(404).json({ error: 'Scan not found' });
+        }
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename=scan-${scan._id}.json`);
+        res.send(JSON.stringify(scan.rawReport, null, 2));
+    } catch (error) {
+        console.error('Error downloading scan:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================================
+//  START THE SERVER
+// ============================================================
+const PORT = process.env.PORT || 3500;
 server.listen(PORT, () => {
     console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });
