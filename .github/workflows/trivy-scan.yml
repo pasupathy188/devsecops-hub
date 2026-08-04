@@ -1,108 +1,61 @@
-name: Automated Trivy Scan & Compliance Ingestion
+name: Trivy Security Scan
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  schedule:
-    - cron: '0 2 * * *'
+    branches: [main]
+  workflow_dispatch: {}
 
 jobs:
-  scan-and-report:
+  scan:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Backend Docker image
-        run: |
-          docker build -t backend:latest ./backend
+      - name: Build Docker image
+        working-directory: ./backend
+        run: docker build -t backend:latest .
 
-      - name: Run Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@master
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: 'backend:latest'
           format: 'json'
           output: 'trivy-output.json'
           severity: 'CRITICAL,HIGH'
+          exit-code: '0'
 
-      - name: Create Python script for posting findings
+      - name: Post raw scan report
         run: |
-          cat > post_findings.py << 'EOF'
-          import json
-          import os
-          import requests
+          curl -X POST "https://devsecops-hub-8qlr.onrender.com/api/scans" \
+            -H "Content-Type: application/json" \
+            --data @trivy-output.json \
+            --max-time 30 \
+            --fail-with-body || echo "Failed to store raw scan (non-fatal)"
 
-          api_url = os.environ.get('API_URL', 'http://localhost:3500/api/findings')
-          scan_api_url = api_url.replace('/findings', '/scans')
-
-          try:
-              with open('trivy-output.json', 'r') as f:
-                  raw_data = json.load(f)
-          except FileNotFoundError:
-              print('❌ No trivy-output.json found.')
-              exit(0)
-
-          # --- 1. Store raw report to /api/scans ---
-          try:
-              scan_response = requests.post(scan_api_url, json=raw_data)
-              if scan_response.status_code in [200, 201]:
-                  print('✅ Raw scan report stored.')
-              else:
-                  print(f'⚠️ Failed to store raw scan: {scan_response.status_code} - {scan_response.text}')
-          except Exception as e:
-              print(f'⚠️ Error storing raw scan: {e}')
-
-          # --- 2. Post individual findings to /api/findings (with duplicate check) ---
-          existing_descriptions = set()
-          try:
-              resp = requests.get(api_url)
-              if resp.status_code == 200:
-                  for item in resp.json():
-                      existing_descriptions.add(item.get('description', ''))
-          except Exception as e:
-              print(f'⚠️ Could not fetch existing findings: {e}')
-
-          count = 0
-          seen_cves = set()
-          for result in raw_data.get('Results', []):
-              for vuln in result.get('Vulnerabilities', []):
-                  severity = vuln.get('Severity', 'MEDIUM')
-                  if severity not in ['CRITICAL', 'HIGH']:
-                      continue
-                  cve_id = vuln.get('VulnerabilityID')
-                  if cve_id in seen_cves:
-                      continue
-                  seen_cves.add(cve_id)
-                  mapped_severity = severity.capitalize()
-                  description = f"{cve_id} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})"
-                  if description in existing_descriptions:
-                      continue
-                  payload = { 'description': description, 'severity': mapped_severity, 'status': 'Open', 'remediated': False }
-                  try:
-                      response = requests.post(api_url, json=payload)
-                      if response.status_code in [200, 201]:
-                          count += 1
-                          print(f'✅ Added: {description[:50]}...')
-                  except Exception as e:
-                      print(f'❌ Error: {e}')
-          print(f'🎯 Added {count} new findings.')
-          EOF
-
-      - name: Install Python dependencies
+      - name: Post individual findings
         run: |
-          pip install requests
+          jq -c '
+            [.Results[]?.Vulnerabilities[]? |
+              select(.Severity == "CRITICAL" or .Severity == "HIGH") |
+              {
+                description: (.VulnerabilityID + " - " + .Title + " (Package: " + .PkgName + ")"),
+                severity: (if .Severity == "CRITICAL" then "Critical" else "High" end),
+                status: "Open",
+                remediated: false
+              }
+            ][]' trivy-output.json | while read -r finding; do
+              curl -s -X POST "https://devsecops-hub-8qlr.onrender.com/api/findings" \
+                -H "Content-Type: application/json" \
+                --data "$finding" \
+                --max-time 15 \
+                -o /dev/null -w "Status: %{http_code}\n" || true
+            done
 
-      - name: Post findings to Compliance Hub API
-        env:
-          API_URL: ${{ secrets.COMPLIANCE_API_URL }}
-        run: |
-          python3 post_findings.py
-
-      - name: Upload Trivy report (optional)
+      - name: Upload scan artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: trivy-report
           path: trivy-output.json
+          retention-days: 30
