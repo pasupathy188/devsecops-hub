@@ -25,6 +25,11 @@ function App() {
   const [scansLoading, setScansLoading] = useState(false);
   const [scansError, setScansError] = useState('');
 
+  // --- Settings state ---
+  const [settings, setSettings] = useState(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
   const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3500/api/findings';
 
   // Fetch findings
@@ -67,6 +72,22 @@ function App() {
     }
   }, [page]);
 
+  // Fetch settings when navigating to Settings page
+  useEffect(() => {
+    if (page === 'settings') {
+      const fetchSettings = async () => {
+        try {
+          const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings');
+          const data = await res.json();
+          setSettings(data);
+        } catch (err) {
+          console.error('Error fetching settings:', err);
+        }
+      };
+      fetchSettings();
+    }
+  }, [page]);
+
   const updateFinding = async (id, updates) => {
     try {
       const response = await fetch(`${API_URL}/${id}`, {
@@ -97,6 +118,27 @@ function App() {
 
   const downloadReport = (scanId) => {
     window.open(`https://devsecops-hub-8qlr.onrender.com/api/scans/${scanId}/download`, '_blank');
+  };
+
+  // --- Save settings ---
+  const saveSettings = async () => {
+    setSettingsSaving(true);
+    setSettingsSaved(false);
+    try {
+      const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+      const data = await res.json();
+      setSettings(data);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2500);
+    } catch (err) {
+      console.error('Error saving settings:', err);
+    } finally {
+      setSettingsSaving(false);
+    }
   };
 
   const filteredFindings = findings.filter(f => {
@@ -287,7 +329,7 @@ function App() {
           </>
         )}
 
-        {/* SETTINGS */}
+        {/* SETTINGS - REAL IMPLEMENTATION */}
         {page === 'settings' && (
           <>
             <header className="top-header">
@@ -296,9 +338,69 @@ function App() {
                 <p className="page-subtitle">Configure compliance thresholds and integrations</p>
               </div>
             </header>
-            <div className="placeholder-card">
-              <p style={{ color: '#6B7280', textAlign: 'center', padding: '64px 0' }}>⚙️ Settings panel will be available soon.<br /><span style={{ fontSize: '13px' }}>Configure severity thresholds, alert destinations, and more.</span></p>
-            </div>
+
+            {!settings ? (
+              <div className="empty-message">Loading settings…</div>
+            ) : (
+              <div className="settings-card">
+                <div className="settings-section">
+                  <h3 className="settings-section-title">Alert thresholds</h3>
+                  <p className="settings-section-desc">Get notified when findings exceed these counts.</p>
+                  <div className="settings-row">
+                    <label className="settings-label">Critical findings threshold</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="settings-input"
+                      value={settings.criticalThreshold}
+                      onChange={(e) => setSettings({ ...settings, criticalThreshold: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div className="settings-row">
+                    <label className="settings-label">High findings threshold</label>
+                    <input
+                      type="number"
+                      min="0"
+                      className="settings-input"
+                      value={settings.highThreshold}
+                      onChange={(e) => setSettings({ ...settings, highThreshold: Number(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                <div className="settings-section">
+                  <h3 className="settings-section-title">Alert destinations</h3>
+                  <p className="settings-section-desc">Where to send notifications when thresholds are exceeded.</p>
+                  <div className="settings-row">
+                    <label className="settings-label">Alert email</label>
+                    <input
+                      type="email"
+                      className="settings-input"
+                      placeholder="security-team@company.com"
+                      value={settings.alertEmail}
+                      onChange={(e) => setSettings({ ...settings, alertEmail: e.target.value })}
+                    />
+                  </div>
+                  <div className="settings-row">
+                    <label className="settings-label">Slack webhook URL</label>
+                    <input
+                      type="text"
+                      className="settings-input"
+                      placeholder="https://hooks.slack.com/services/..."
+                      value={settings.slackWebhookUrl}
+                      onChange={(e) => setSettings({ ...settings, slackWebhookUrl: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="settings-actions">
+                  <button className="settings-save-btn" onClick={saveSettings} disabled={settingsSaving}>
+                    {settingsSaving ? 'Saving…' : 'Save changes'}
+                  </button>
+                  {settingsSaved && <span className="settings-saved-msg">✅ Saved</span>}
+                </div>
+              </div>
+            )}
           </>
         )}
       </main>

@@ -167,3 +167,111 @@ body {
   margin-top: 16px;
 }
 .app.dark .placeholder-card { background: #12161F; border-color: #1F2430; }
+.settings-card {
+  background: #ffffff;
+  border: 1px solid #E4E7EC;
+  border-radius: 10px;
+  padding: 24px;
+  max-width: 640px;
+}
+.app.dark .settings-card {
+  background: #12161F;
+  border-color: #1F2430;
+}
+
+.settings-section {
+  margin-bottom: 28px;
+}
+.settings-section:last-of-type {
+  margin-bottom: 20px;
+}
+.settings-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #0B0E14;
+}
+.app.dark .settings-section-title {
+  color: #F1F2F4;
+}
+.settings-section-desc {
+  font-size: 12.5px;
+  color: #6B7280;
+  margin-bottom: 16px;
+}
+.app.dark .settings-section-desc {
+  color: #9095A3;
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid #F1F2F4;
+}
+.app.dark .settings-row {
+  border-bottom-color: #1A1F2A;
+}
+.settings-row:last-child {
+  border-bottom: none;
+}
+.settings-label {
+  font-size: 13.5px;
+  color: #374151;
+  font-weight: 500;
+}
+.app.dark .settings-label {
+  color: #D1D5DB;
+}
+.settings-input {
+  width: 240px;
+  padding: 7px 10px;
+  border: 1px solid #E4E7EC;
+  border-radius: 6px;
+  font-size: 13px;
+  background: transparent;
+  color: inherit;
+}
+.app.dark .settings-input {
+  border-color: #1F2430;
+}
+.settings-input:focus {
+  outline: none;
+  border-color: #4F46E5;
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #E4E7EC;
+}
+.app.dark .settings-actions {
+  border-top-color: #1F2430;
+}
+.settings-save-btn {
+  background: #4F46E5;
+  color: #fff;
+  border: none;
+  padding: 9px 18px;
+  border-radius: 7px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.settings-save-btn:hover {
+  background: #4338CA;
+}
+.settings-save-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.settings-saved-msg {
+  font-size: 13px;
+  color: #15803D;
+  font-weight: 500;
+}

@@ -56,6 +56,59 @@ const ScanSchema = new mongoose.Schema({
     rawReport: { type: Object, required: true }
 });
 const Scan = mongoose.model('Scan', ScanSchema);
+// ============================================================
+//  SETTINGS SCHEMA (singleton document)
+// ============================================================
+
+const SettingsSchema = new mongoose.Schema({
+    criticalThreshold: { type: Number, default: 0 },
+    highThreshold: { type: Number, default: 10 },
+    alertEmail: { type: String, default: '' },
+    slackWebhookUrl: { type: String, default: '' },
+    autoRemediateResolved: { type: Boolean, default: false },
+    updatedAt: { type: Date, default: Date.now }
+});
+const Settings = mongoose.model('Settings', SettingsSchema);
+
+// ============================================================
+//  SETTINGS ROUTES
+// ============================================================
+
+// GET current settings (auto-creates default if none exist)
+app.get('/api/settings', async (req, res) => {
+    try {
+        let settings = await Settings.findOne();
+        if (!settings) {
+            settings = await Settings.create({});
+        }
+        res.json(settings);
+    } catch (error) {
+        console.error('Error fetching settings:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT update settings
+app.put('/api/settings', async (req, res) => {
+    try {
+        let settings = await Settings.findOne();
+        if (!settings) {
+            settings = new Settings();
+        }
+        const fields = ['criticalThreshold', 'highThreshold', 'alertEmail', 'slackWebhookUrl', 'autoRemediateResolved'];
+        fields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                settings[field] = req.body[field];
+            }
+        });
+        settings.updatedAt = new Date();
+        await settings.save();
+        res.json(settings);
+    } catch (error) {
+        console.error('Error updating settings:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // ============================================================
 //  FINDINGS ROUTES (CRUD)
