@@ -31,15 +31,11 @@ mongoose.connect(MONGO_URI)
     .then(() => console.log('Connected to MongoDB'))
     .catch(err => console.log('MongoDB not running yet.', err));
 
-// ============================================================
-//  API KEY AUTH MIDDLEWARE
-// ============================================================
 function requireApiKey(req, res, next) {
     const providedKey = req.headers['x-api-key'];
     const validKey = process.env.API_KEY;
-
     if (!validKey) {
-        console.error('API_KEY is not set on the server — rejecting all write requests.');
+        console.error('API_KEY is not set on the server.');
         return res.status(500).json({ error: 'Server misconfiguration: API key not set' });
     }
     if (!providedKey || providedKey !== validKey) {
@@ -48,9 +44,6 @@ function requireApiKey(req, res, next) {
     next();
 }
 
-// ============================================================
-//  SCHEMAS & MODELS
-// ============================================================
 const FindingSchema = new mongoose.Schema({
     cveId: { type: String, index: true },
     description: { type: String, required: true },
@@ -58,6 +51,8 @@ const FindingSchema = new mongoose.Schema({
     status: { type: String, enum: ['Open', 'In Progress', 'Resolved', 'Verified'], default: 'Open' },
     remediated: { type: Boolean, default: false },
     scanId: { type: mongoose.Schema.Types.ObjectId, ref: 'Scan' },
+    source: { type: String, enum: ['trivy', 'semgrep', 'npm-audit'], default: 'trivy' },
+    filePath: { type: String },
     createdAt: { type: Date, default: Date.now }
 });
 const Finding = mongoose.model('Finding', FindingSchema);
@@ -82,14 +77,10 @@ const SettingsSchema = new mongoose.Schema({
 });
 const Settings = mongoose.model('Settings', SettingsSchema);
 
-// ============================================================
-//  ALERTING
-// ============================================================
 async function checkThresholdsAndAlert(scanCritical, scanHigh) {
     try {
         const settings = await Settings.findOne();
         if (!settings) return;
-
         const criticalExceeded = scanCritical > settings.criticalThreshold;
         const highExceeded = scanHigh > settings.highThreshold;
         if (!criticalExceeded && !highExceeded) return;
@@ -103,9 +94,7 @@ async function checkThresholdsAndAlert(scanCritical, scanHigh) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: message })
                 });
-            } catch (err) {
-                console.error('Slack alert failed:', err.message);
-            }
+            } catch (err) { console.error('Slack alert failed:', err.message); }
         }
 
         if (settings.alertEmail && process.env.SMTP_HOST) {
@@ -122,25 +111,18 @@ async function checkThresholdsAndAlert(scanCritical, scanHigh) {
                     subject: 'Compliance Alert: Threshold Exceeded',
                     text: message
                 });
-            } catch (err) {
-                console.error('Email alert failed:', err.message);
-            }
+            } catch (err) { console.error('Email alert failed:', err.message); }
         }
     } catch (err) {
         console.error('Error checking thresholds:', err.message);
     }
 }
 
-// ============================================================
-//  FINDINGS ROUTES
-// ============================================================
 app.get('/api/findings', async (req, res) => {
     try {
         const findings = await Finding.find().sort({ createdAt: -1 });
         res.json(findings);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/findings', requireApiKey, async (req, res) => {
@@ -156,7 +138,38 @@ app.post('/api/findings', requireApiKey, async (req, res) => {
         await finding.save();
         io.emit('finding_added', finding);
         res.status(201).json(finding);
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.post('/api/findings/bulk', requireApiKey, async (req, res) => {
+    try {
+        const { source, findings } = req.body;
+        if (!source || !Array.isArray(findings)) {
+            return res.status(400).json({ error: 'source and findings[] are required' });
+        }
+        let added = 0;
+        for (const f of findings) {
+            const existing = await Finding.findOne({
+                description: f.description,
+                source,
+                status: { $in: ['Open', 'In Progress'] }
+            });
+            if (existing) continue;
+            const finding = new Finding({
+                cveId: f.cveId || undefined,
+                description: f.description,
+                severity: f.severity,
+                status: 'Open',
+                remediated: false,
+                source,
+                filePath: f.filePath || undefined
+            });
+            await finding.save();
+            added++;
+        }
+        res.status(201).json({ message: `${source} findings processed`, added });
     } catch (error) {
+        console.error('Error storing bulk findings:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -172,9 +185,7 @@ app.put('/api/findings/:id', requireApiKey, async (req, res) => {
         await finding.save();
         io.emit('finding_updated', finding);
         res.json(finding);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.delete('/api/findings/:id', requireApiKey, async (req, res) => {
@@ -183,21 +194,14 @@ app.delete('/api/findings/:id', requireApiKey, async (req, res) => {
         if (!finding) return res.status(404).json({ error: 'Finding not found' });
         io.emit('finding_deleted', req.params.id);
         res.json({ message: 'Finding deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// ============================================================
-//  SCANS ROUTES
-// ============================================================
 app.get('/api/scans', async (req, res) => {
     try {
         const scans = await Scan.find().sort({ scannedAt: -1 });
         res.json(scans);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/scans', requireApiKey, async (req, res) => {
@@ -213,19 +217,14 @@ app.post('/api/scans', requireApiKey, async (req, res) => {
                 }
             }
         }
-
         const scan = new Scan({
             imageName: rawReport.Metadata?.ImageName || 'backend:latest',
-            totalVulns: total,
-            critical,
-            high,
-            rawReport
+            totalVulns: total, critical, high, rawReport
         });
         await scan.save();
 
         let findingsAdded = 0;
         const severityMap = { CRITICAL: 'Critical', HIGH: 'High' };
-
         if (rawReport.Results) {
             const seenInThisScan = new Set();
             for (const result of rawReport.Results) {
@@ -233,19 +232,18 @@ app.post('/api/scans', requireApiKey, async (req, res) => {
                     if (!['CRITICAL', 'HIGH'].includes(vuln.Severity)) continue;
                     if (seenInThisScan.has(vuln.VulnerabilityID)) continue;
                     seenInThisScan.add(vuln.VulnerabilityID);
-
                     const existing = await Finding.findOne({
                         cveId: vuln.VulnerabilityID,
                         status: { $in: ['Open', 'In Progress'] }
                     });
                     if (existing) continue;
-
                     const finding = new Finding({
                         cveId: vuln.VulnerabilityID,
                         description: `${vuln.VulnerabilityID} - ${vuln.Title || vuln.Description || ''} (Package: ${vuln.PkgName})`,
                         severity: severityMap[vuln.Severity],
                         status: 'Open',
                         remediated: false,
+                        source: 'trivy',
                         scanId: scan._id
                     });
                     await finding.save();
@@ -255,7 +253,6 @@ app.post('/api/scans', requireApiKey, async (req, res) => {
         }
 
         checkThresholdsAndAlert(critical, high);
-
         res.status(201).json({ message: 'Scan report stored', scanId: scan._id, findingsAdded });
     } catch (error) {
         console.error('Error storing scan:', error);
@@ -270,22 +267,15 @@ app.get('/api/scans/:id/download', async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Content-Disposition', `attachment; filename=scan-${scan._id}.json`);
         res.send(JSON.stringify(scan.rawReport, null, 2));
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// ============================================================
-//  SETTINGS ROUTES
-// ============================================================
 app.get('/api/settings', async (req, res) => {
     try {
         let settings = await Settings.findOne();
         if (!settings) settings = await Settings.create({});
         res.json(settings);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.put('/api/settings', requireApiKey, async (req, res) => {
@@ -299,14 +289,9 @@ app.put('/api/settings', requireApiKey, async (req, res) => {
         settings.updatedAt = new Date();
         await settings.save();
         res.json(settings);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// ============================================================
-//  START SERVER
-// ============================================================
 const PORT = process.env.PORT || 3500;
 server.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

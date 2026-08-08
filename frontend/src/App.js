@@ -243,7 +243,7 @@ const deleteFinding = async (id) => {
 
             <section className="table-section">
               <table className="findings-table">
-                <thead><tr><th>ID</th><th>Finding</th><th>Severity</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>ID</th><th>Finding</th><th>Source</th><th>Severity</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {loading ? (
                     <tr><td colSpan="5" className="empty-message">Loading findings…</td></tr>
@@ -255,6 +255,7 @@ const deleteFinding = async (id) => {
                       return (
                         <tr key={finding._id} className={finding.remediated ? 'remediated' : ''} style={{ borderLeft: `3px solid ${getSeverityColor(finding.severity)}` }}>
                           <td className="mono-cell">{getFindingId(index)}</td>
+			  <td><span className="source-badge">{finding.source || 'trivy'}</span></td>
                           <td>{finding.description}</td>
                           <td className="mono-cell" style={{ color: getSeverityColor(finding.severity) }}>{finding.severity}</td>
                           <td><span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>{finding.status}</span></td>

@@ -16,17 +16,79 @@ jobs:
       - name: Scan backend dependencies
         run: |
           cd backend
-          npm audit --audit-level=high || true
+          npm audit --audit-level=high --json > ../backend-audit.json || true
 
       - name: Scan frontend dependencies
         run: |
           cd frontend
-          npm audit --audit-level=high || true
+          npm audit --audit-level=high --json > ../frontend-audit.json || true
 
       - name: Run Semgrep
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: p/security-audit
+        run: |
+          pip install semgrep --break-system-packages
+          semgrep --config p/security-audit --json --output semgrep-results.json . || true
+
+      - name: Install Python deps for reporting
+        run: pip install requests --break-system-packages
+
+      - name: Post code/dependency findings
+        if: always()
+        env:
+          API_KEY: ${{ secrets.COMPLIANCE_API_KEY }}
+        run: |
+          python3 << 'EOF'
+          import json, os, requests
+
+          api_url = "https://devsecops-hub-8qlr.onrender.com/api/findings/bulk"
+          headers = {"X-API-Key": os.environ["API_KEY"], "Content-Type": "application/json"}
+
+          for label, path in [("backend", "backend-audit.json"), ("frontend", "frontend-audit.json")]:
+              try:
+                  with open(path) as f:
+                      data = json.load(f)
+                  findings = []
+                  for name, vuln in data.get("vulnerabilities", {}).items():
+                      sev = vuln.get("severity", "").capitalize()
+                      if sev not in ["Critical", "High"]:
+                          continue
+                      findings.append({
+                          "description": f"{name} ({label}) - severity {vuln.get('severity')}",
+                          "severity": sev
+                      })
+                  if findings:
+                      r = requests.post(api_url, headers=headers, json={"source": "npm-audit", "findings": findings})
+                      print(f"{label} npm audit: {r.status_code} - {r.text}")
+                  else:
+                      print(f"{label} npm audit: no high/critical findings")
+              except FileNotFoundError:
+                  print(f"No audit file for {label}")
+              except Exception as e:
+                  print(f"Error processing {label} audit: {e}")
+
+          try:
+              with open("semgrep-results.json") as f:
+                  data = json.load(f)
+              findings = []
+              for r in data.get("results", []):
+                  sev_map = {"ERROR": "High", "WARNING": "Medium", "INFO": "Low"}
+                  sev = sev_map.get(r.get("extra", {}).get("severity", "WARNING"), "Medium")
+                  if sev != "High":
+                      continue
+                  findings.append({
+                      "description": f"{r.get('check_id')} - {r.get('extra', {}).get('message', '')[:100]}",
+                      "severity": sev,
+                      "filePath": r.get("path")
+                  })
+              if findings:
+                  resp = requests.post(api_url, headers=headers, json={"source": "semgrep", "findings": findings})
+                  print(f"semgrep: {resp.status_code} - {resp.text}")
+              else:
+                  print("semgrep: no high-severity findings")
+          except FileNotFoundError:
+              print("No semgrep results file")
+          except Exception as e:
+              print(f"Error processing semgrep: {e}")
+          EOF
 
       - name: Build Docker image
         working-directory: ./backend
