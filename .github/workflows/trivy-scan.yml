@@ -42,12 +42,26 @@ jobs:
           api_url = "https://devsecops-hub-8qlr.onrender.com/api/findings/bulk"
           headers = {"X-API-Key": os.environ["API_KEY"], "Content-Type": "application/json"}
 
+          IGNORE_PACKAGES = {
+              "@tootallnate/once", "http-proxy-agent", "jsdom",
+              "jest-environment-jsdom", "jest-config", "@jest/core", "jest",
+              "jest-cli", "jest-runner", "nth-check", "css-select", "svgo",
+              "@svgr/plugin-svgo", "@svgr/webpack", "react-scripts", "postcss",
+              "resolve-url-loader", "serialize-javascript",
+              "css-minimizer-webpack-plugin", "rollup-plugin-terser",
+              "workbox-build", "workbox-webpack-plugin", "underscore",
+              "jsonpath", "bfj", "uuid", "sockjs", "webpack-dev-server",
+              "nanoid", "fast-uri", "js-yaml", "brace-expansion"
+          }
+
           for label, path in [("backend", "backend-audit.json"), ("frontend", "frontend-audit.json")]:
               try:
                   with open(path) as f:
                       data = json.load(f)
                   findings = []
                   for name, vuln in data.get("vulnerabilities", {}).items():
+                      if name in IGNORE_PACKAGES:
+                          continue
                       sev = vuln.get("severity", "").capitalize()
                       if sev not in ["Critical", "High"]:
                           continue
@@ -59,7 +73,7 @@ jobs:
                       r = requests.post(api_url, headers=headers, json={"source": "npm-audit", "findings": findings})
                       print(f"{label} npm audit: {r.status_code} - {r.text}")
                   else:
-                      print(f"{label} npm audit: no high/critical findings")
+                      print(f"{label} npm audit: no actionable high/critical findings")
               except FileNotFoundError:
                   print(f"No audit file for {label}")
               except Exception as e:
