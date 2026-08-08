@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import './App.css';
-
+const API_KEY = process.env.REACT_APP_API_KEY;
 const ICONS = {
   dashboard: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>,
   findings: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
@@ -90,55 +90,57 @@ function App() {
 
   const updateFinding = async (id, updates) => {
     try {
-      const response = await fetch(`${API_URL}/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setFindings(prev => prev.map(f => f._id === data._id ? data : f));
+        const response = await fetch(`${API_URL}/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+            body: JSON.stringify(updates)
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        setFindings(prev => prev.map(f => f._id === data._id ? data : f));
     } catch (err) {
-      console.error('Error updating finding:', err);
-      setError(`Failed to update: ${err.message}`);
+        console.error('Error updating finding:', err);
+        setError(`Failed to update: ${err.message}`);
     }
-  };
+};
 
-  const deleteFinding = async (id) => {
+const deleteFinding = async (id) => {
     if (!window.confirm('Delete this finding? This cannot be undone.')) return;
     try {
-      const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      setFindings(prev => prev.filter(f => f._id !== id));
+        const response = await fetch(`${API_URL}/${id}`, {
+            method: 'DELETE',
+            headers: { 'X-API-Key': API_KEY }
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        setFindings(prev => prev.filter(f => f._id !== id));
     } catch (err) {
-      console.error('Error deleting finding:', err);
-      setError(`Failed to delete: ${err.message}`);
+        console.error('Error deleting finding:', err);
+        setError(`Failed to delete: ${err.message}`);
     }
-  };
+};
 
-  const downloadReport = (scanId) => {
-    window.open(`https://devsecops-hub-8qlr.onrender.com/api/scans/${scanId}/download`, '_blank');
-  };
-
-  // --- Save settings ---
-  const saveSettings = async () => {
+const saveSettings = async () => {
     setSettingsSaving(true);
     setSettingsSaved(false);
     try {
-      const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-      const data = await res.json();
-      setSettings(data);
-      setSettingsSaved(true);
-      setTimeout(() => setSettingsSaved(false), 2500);
+        const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+            body: JSON.stringify(settings)
+        });
+        const data = await res.json();
+        setSettings(data);
+        setSettingsSaved(true);
+        setTimeout(() => setSettingsSaved(false), 2500);
     } catch (err) {
-      console.error('Error saving settings:', err);
+        console.error('Error saving settings:', err);
     } finally {
-      setSettingsSaving(false);
+        setSettingsSaving(false);
     }
+};
+
+  const downloadReport = (scanId) => {
+    window.open(`https://devsecops-hub-8qlr.onrender.com/api/scans/${scanId}/download`, '_blank');
   };
 
   const filteredFindings = findings.filter(f => {

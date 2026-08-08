@@ -1,20 +1,22 @@
-﻿FROM node:18-alpine AS builder
+﻿FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-
-RUN npm install
+RUN npm ci
 
 COPY . .
-
-ENV REACT_APP_BACKEND_URL=http://backend:3500
 
 RUN npm run build
 
 FROM nginx:alpine
 
+RUN addgroup -S app && adduser -S app -G app && \
+    chown -R app:app /usr/share/nginx/html /var/cache/nginx /var/run
+
 COPY --from=builder /app/build /usr/share/nginx/html
+
+USER app
 
 EXPOSE 80
 
