@@ -1,4 +1,4 @@
-name: Trivy Security Scan
+﻿name: DevSecOps Pipeline
 
 on:
   push:
@@ -13,50 +13,60 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Scan backend dependencies
+        run: |
+          cd backend
+          npm audit --audit-level=high || true
+
+      - name: Scan frontend dependencies
+        run: |
+          cd frontend
+          npm audit --audit-level=high || true
+
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: p/security-audit
+
       - name: Build Docker image
         working-directory: ./backend
         run: docker build -t backend:latest .
 
-      - name: Run Trivy scan
+      - name: Run Trivy vulnerability scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'backend:latest'
           format: 'json'
           output: 'trivy-output.json'
           severity: 'CRITICAL,HIGH'
-          exit-code: '0'
+          exit-code: '1'
+
+      - name: Generate SBOM
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: 'backend:latest'
+          format: 'cyclonedx'
+          output: 'sbom.json'
 
       - name: Post raw scan report
+        if: always()
+        env:
+          API_KEY: ${{ secrets.COMPLIANCE_API_KEY }}
         run: |
           curl -X POST "https://devsecops-hub-8qlr.onrender.com/api/scans" \
             -H "Content-Type: application/json" \
+            -H "X-API-Key: $API_KEY" \
             --data @trivy-output.json \
             --max-time 30 \
             --fail-with-body || echo "Failed to store raw scan (non-fatal)"
 
-      - name: Post individual findings
-        run: |
-          jq -c '
-            [.Results[]?.Vulnerabilities[]? |
-              select(.Severity == "CRITICAL" or .Severity == "HIGH") |
-              {
-                description: (.VulnerabilityID + " - " + .Title + " (Package: " + .PkgName + ")"),
-                severity: (if .Severity == "CRITICAL" then "Critical" else "High" end),
-                status: "Open",
-                remediated: false
-              }
-            ][]' trivy-output.json | while read -r finding; do
-              curl -s -X POST "https://devsecops-hub-8qlr.onrender.com/api/findings" \
-                -H "Content-Type: application/json" \
-                --data "$finding" \
-                --max-time 15 \
-                -o /dev/null -w "Status: %{http_code}\n" || true
-            done
-
-      - name: Upload scan artifact
+      - name: Upload scan artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: trivy-report
-          path: trivy-output.json
+          name: trivy-reports
+          path: |
+            trivy-output.json
+            sbom.json
           retention-days: 30
