@@ -88,11 +88,16 @@ function App() {
     }
   }, [page]);
 
-  const updateFinding = async (id, updates) => {
+ const API_KEY = process.env.REACT_APP_API_KEY;
+
+const updateFinding = async (id, updates) => {
     try {
         const response = await fetch(`${API_URL}/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': API_KEY
+            },
             body: JSON.stringify(updates)
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -109,33 +114,15 @@ const deleteFinding = async (id) => {
     try {
         const response = await fetch(`${API_URL}/${id}`, {
             method: 'DELETE',
-            headers: { 'X-API-Key': API_KEY }
+            headers: {
+                'X-API-Key': API_KEY
+            }
         });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         setFindings(prev => prev.filter(f => f._id !== id));
     } catch (err) {
         console.error('Error deleting finding:', err);
         setError(`Failed to delete: ${err.message}`);
-    }
-};
-
-const saveSettings = async () => {
-    setSettingsSaving(true);
-    setSettingsSaved(false);
-    try {
-        const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
-            body: JSON.stringify(settings)
-        });
-        const data = await res.json();
-        setSettings(data);
-        setSettingsSaved(true);
-        setTimeout(() => setSettingsSaved(false), 2500);
-    } catch (err) {
-        console.error('Error saving settings:', err);
-    } finally {
-        setSettingsSaving(false);
     }
 };
 
