@@ -1,9 +1,11 @@
 node_modules/
-package-lock.json
 .env
+.env.*
 *.log
 .DS_Store
 dist/
 build/
 *.pem
-.env
+trivy/
+trivy-output.json
+sbom.json
