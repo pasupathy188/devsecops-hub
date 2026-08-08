@@ -1,0 +1,11 @@
+﻿# These CVEs are in npm's own bundled internal tooling (shipped inside the
+# node:22-alpine base image), not in our application's dependency tree.
+# Confirmed via `npm ls` on each package — none appear in our actual
+# node_modules dependency chain.
+CVE-2026-59873
+CVE-2026-59874
+CVE-2026-13149
+CVE-2026-14257
+CVE-2026-69152
+CVE-2026-33671
+CVE-2026-48815

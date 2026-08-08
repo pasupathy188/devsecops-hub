@@ -40,6 +40,7 @@ jobs:
           output: 'trivy-output.json'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
+          trivyignores: 'backend/.trivyignore'
 
       - name: Generate SBOM
         if: always()
