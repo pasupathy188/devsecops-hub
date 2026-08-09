@@ -106,7 +106,7 @@ jobs:
 
       - name: Build Docker image
         working-directory: ./backend
-        run: docker build -t backend:latest .
+        run: docker build --no-cache -t backend:latest .
 
       - name: Run Trivy vulnerability scan
         uses: aquasecurity/trivy-action@v0.36.0
