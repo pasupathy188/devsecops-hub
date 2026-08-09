@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import './App.css';
 const API_KEY = process.env.REACT_APP_API_KEY;
+
 const ICONS = {
   dashboard: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>,
   findings: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
@@ -25,14 +26,12 @@ function App() {
   const [scansLoading, setScansLoading] = useState(false);
   const [scansError, setScansError] = useState('');
 
-  // --- Settings state ---
   const [settings, setSettings] = useState(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
   const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3500/api/findings';
 
-  // Fetch findings
   useEffect(() => {
     const fetchFindings = async () => {
       try {
@@ -51,7 +50,6 @@ function App() {
     fetchFindings();
   }, [API_URL]);
 
-  // Fetch scans - HARDCODED URL
   useEffect(() => {
     if (page === 'scans') {
       const fetchScans = async () => {
@@ -72,7 +70,6 @@ function App() {
     }
   }, [page]);
 
-  // Fetch settings when navigating to Settings page
   useEffect(() => {
     if (page === 'settings') {
       const fetchSettings = async () => {
@@ -88,9 +85,7 @@ function App() {
     }
   }, [page]);
 
- const API_KEY = process.env.REACT_APP_API_KEY;
-
-const updateFinding = async (id, updates) => {
+  const updateFinding = async (id, updates) => {
     try {
         const response = await fetch(`${API_URL}/${id}`, {
             method: 'PUT',
@@ -107,9 +102,9 @@ const updateFinding = async (id, updates) => {
         console.error('Error updating finding:', err);
         setError(`Failed to update: ${err.message}`);
     }
-};
+  };
 
-const deleteFinding = async (id) => {
+  const deleteFinding = async (id) => {
     if (!window.confirm('Delete this finding? This cannot be undone.')) return;
     try {
         const response = await fetch(`${API_URL}/${id}`, {
@@ -124,7 +119,27 @@ const deleteFinding = async (id) => {
         console.error('Error deleting finding:', err);
         setError(`Failed to delete: ${err.message}`);
     }
-};
+  };
+
+  const saveSettings = async () => {
+    setSettingsSaving(true);
+    setSettingsSaved(false);
+    try {
+        const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+            body: JSON.stringify(settings)
+        });
+        const data = await res.json();
+        setSettings(data);
+        setSettingsSaved(true);
+        setTimeout(() => setSettingsSaved(false), 2500);
+    } catch (err) {
+        console.error('Error saving settings:', err);
+    } finally {
+        setSettingsSaving(false);
+    }
+  };
 
   const downloadReport = (scanId) => {
     window.open(`https://devsecops-hub-8qlr.onrender.com/api/scans/${scanId}/download`, '_blank');
@@ -195,7 +210,6 @@ const deleteFinding = async (id) => {
       </aside>
 
       <main className="main-content">
-        {/* DASHBOARD */}
         {page === 'dashboard' && (
           <>
             <header className="top-header">
@@ -219,7 +233,6 @@ const deleteFinding = async (id) => {
           </>
         )}
 
-        {/* FINDINGS */}
         {(page === 'findings' || page === 'dashboard') && (
           <>
             <section className="filter-section">
@@ -246,17 +259,17 @@ const deleteFinding = async (id) => {
                 <thead><tr><th>ID</th><th>Finding</th><th>Source</th><th>Severity</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="5" className="empty-message">Loading findings…</td></tr>
+                    <tr><td colSpan="6" className="empty-message">Loading findings…</td></tr>
                   ) : filteredFindings.length === 0 ? (
-                    <tr><td colSpan="5" className="empty-message">No findings match your filters.</td></tr>
+                    <tr><td colSpan="6" className="empty-message">No findings match your filters.</td></tr>
                   ) : (
                     filteredFindings.map((finding, index) => {
                       const statusStyle = getStatusStyle(finding.status);
                       return (
                         <tr key={finding._id} className={finding.remediated ? 'remediated' : ''} style={{ borderLeft: `3px solid ${getSeverityColor(finding.severity)}` }}>
                           <td className="mono-cell">{getFindingId(index)}</td>
-			  <td><span className="source-badge">{finding.source || 'trivy'}</span></td>
                           <td>{finding.description}</td>
+                          <td><span className="source-badge">{finding.source || 'trivy'}</span></td>
                           <td className="mono-cell" style={{ color: getSeverityColor(finding.severity) }}>{finding.severity}</td>
                           <td><span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>{finding.status}</span></td>
                           <td className="actions-cell">
@@ -278,7 +291,6 @@ const deleteFinding = async (id) => {
           </>
         )}
 
-        {/* SCANS */}
         {page === 'scans' && (
           <>
             <header className="top-header">
@@ -294,8 +306,8 @@ const deleteFinding = async (id) => {
                 <div className="empty-message">Loading scan history…</div>
               ) : scans.length === 0 ? (
                 <div className="empty-message">
-                  📋 No scans recorded yet.<br />
-                  <span style={{ fontSize: '13px', color: '#9095A3' }}>Run .\auto-trivy.ps1 locally or push code to trigger a scan.</span>
+                  No scans recorded yet.<br />
+                  <span style={{ fontSize: '13px', color: '#9095A3' }}>Push code to trigger a scan via the CI/CD pipeline.</span>
                 </div>
               ) : (
                 <table className="findings-table">
@@ -309,7 +321,7 @@ const deleteFinding = async (id) => {
                         <td>{scan.totalVulns || 0}</td>
                         <td className="mono-cell" style={{ color: '#DC2626' }}>{scan.critical || 0}</td>
                         <td className="mono-cell" style={{ color: '#EA580C' }}>{scan.high || 0}</td>
-                        <td><button className="download-btn" onClick={() => downloadReport(scan._id)}>📥 JSON</button></td>
+                        <td><button className="download-btn" onClick={() => downloadReport(scan._id)}>JSON</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -319,7 +331,6 @@ const deleteFinding = async (id) => {
           </>
         )}
 
-        {/* SETTINGS - REAL IMPLEMENTATION */}
         {page === 'settings' && (
           <>
             <header className="top-header">
@@ -387,7 +398,7 @@ const deleteFinding = async (id) => {
                   <button className="settings-save-btn" onClick={saveSettings} disabled={settingsSaving}>
                     {settingsSaving ? 'Saving…' : 'Save changes'}
                   </button>
-                  {settingsSaved && <span className="settings-saved-msg">✅ Saved</span>}
+                  {settingsSaved && <span className="settings-saved-msg">Saved</span>}
                 </div>
               </div>
             )}
