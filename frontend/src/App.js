@@ -87,37 +87,32 @@ function App() {
 
   const updateFinding = async (id, updates) => {
     try {
-        const response = await fetch(`${API_URL}/${id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': API_KEY
-            },
-            body: JSON.stringify(updates)
-        });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        setFindings(prev => prev.map(f => f._id === data._id ? data : f));
+      const response = await fetch(`${API_URL}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+        body: JSON.stringify(updates)
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setFindings(prev => prev.map(f => f._id === data._id ? data : f));
     } catch (err) {
-        console.error('Error updating finding:', err);
-        setError(`Failed to update: ${err.message}`);
+      console.error('Error updating finding:', err);
+      setError(`Failed to update: ${err.message}`);
     }
   };
 
   const deleteFinding = async (id) => {
     if (!window.confirm('Delete this finding? This cannot be undone.')) return;
     try {
-        const response = await fetch(`${API_URL}/${id}`, {
-            method: 'DELETE',
-            headers: {
-                'X-API-Key': API_KEY
-            }
-        });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        setFindings(prev => prev.filter(f => f._id !== id));
+      const response = await fetch(`${API_URL}/${id}`, {
+        method: 'DELETE',
+        headers: { 'X-API-Key': API_KEY }
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      setFindings(prev => prev.filter(f => f._id !== id));
     } catch (err) {
-        console.error('Error deleting finding:', err);
-        setError(`Failed to delete: ${err.message}`);
+      console.error('Error deleting finding:', err);
+      setError(`Failed to delete: ${err.message}`);
     }
   };
 
@@ -125,19 +120,19 @@ function App() {
     setSettingsSaving(true);
     setSettingsSaved(false);
     try {
-        const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
-            body: JSON.stringify(settings)
-        });
-        const data = await res.json();
-        setSettings(data);
-        setSettingsSaved(true);
-        setTimeout(() => setSettingsSaved(false), 2500);
+      const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
+        body: JSON.stringify(settings)
+      });
+      const data = await res.json();
+      setSettings(data);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2500);
     } catch (err) {
-        console.error('Error saving settings:', err);
+      console.error('Error saving settings:', err);
     } finally {
-        setSettingsSaving(false);
+      setSettingsSaving(false);
     }
   };
 
@@ -158,6 +153,11 @@ function App() {
   const resolvedCount = findings.filter(f => f.status === 'Resolved' || f.status === 'Verified').length;
   const remediatedCount = findings.filter(f => f.remediated).length;
   const score = total === 0 ? 100 : Math.round((remediatedCount / total) * 100);
+
+  const openOnlyCount = findings.filter(f => f.status === 'Open').length;
+  const inProgressCount = findings.filter(f => f.status === 'In Progress').length;
+  const resolvedOnlyCount = findings.filter(f => f.status === 'Resolved').length;
+  const verifiedCount = findings.filter(f => f.status === 'Verified').length;
 
   const getStatusStyle = (status) => {
     const styles = {
@@ -188,17 +188,18 @@ function App() {
           <span className="sidebar-logo">{ICONS.shield}</span>
           <span className="sidebar-title">Compliance</span>
         </div>
+
         <nav className="sidebar-nav">
-          <a href="#" className={`nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={(e) => navigateTo('dashboard', e)}>
+          <a href="#dashboard" className={`nav-item ${page === 'dashboard' ? 'active' : ''}`} onClick={(e) => navigateTo('dashboard', e)}>
             <span className="nav-icon">{ICONS.dashboard}</span>Dashboard
           </a>
-          <a href="#" className={`nav-item ${page === 'findings' ? 'active' : ''}`} onClick={(e) => navigateTo('findings', e)}>
+          <a href="#findings" className={`nav-item ${page === 'findings' ? 'active' : ''}`} onClick={(e) => navigateTo('findings', e)}>
             <span className="nav-icon">{ICONS.findings}</span>Findings
           </a>
-          <a href="#" className={`nav-item ${page === 'scans' ? 'active' : ''}`} onClick={(e) => navigateTo('scans', e)}>
+          <a href="#scans" className={`nav-item ${page === 'scans' ? 'active' : ''}`} onClick={(e) => navigateTo('scans', e)}>
             <span className="nav-icon">{ICONS.scans}</span>Scans
           </a>
-          <a href="#" className={`nav-item ${page === 'settings' ? 'active' : ''}`} onClick={(e) => navigateTo('settings', e)}>
+          <a href="#settings" className={`nav-item ${page === 'settings' ? 'active' : ''}`} onClick={(e) => navigateTo('settings', e)}>
             <span className="nav-icon">{ICONS.settings}</span>Settings
           </a>
         </nav>
@@ -220,21 +221,82 @@ function App() {
               <span className="live-badge"><span className="live-dot"></span>Live</span>
             </header>
             {error && <div className="error-banner">{error}</div>}
-            <section className="stats-grid">
-              <div className="stat-card"><span className="stat-number">{total}</span><span className="stat-label">Total findings</span></div>
-              <div className="stat-card"><span className="stat-number accent-critical">{criticalCount}</span><span className="stat-label">Critical</span></div>
-              <div className="stat-card"><span className="stat-number accent-open">{openCount}</span><span className="stat-label">Open</span></div>
-              <div className="stat-card"><span className="stat-number accent-resolved">{resolvedCount}</span><span className="stat-label">Resolved</span></div>
+
+            <section className="hero-banner">
+              <div className="hero-ring">
+                <svg viewBox="0 0 120 120" className="ring-svg">
+                  <circle cx="60" cy="60" r="52" className="ring-track" />
+                  <circle
+                    cx="60" cy="60" r="52"
+                    className="ring-fill"
+                    style={{
+                      strokeDasharray: 2 * Math.PI * 52,
+                      strokeDashoffset: 2 * Math.PI * 52 * (1 - score / 100),
+                      stroke: score > 70 ? '#22C55E' : score > 40 ? '#EAB308' : '#EF4444'
+                    }}
+                  />
+                </svg>
+                <div className="ring-label">
+                  <span className="ring-number">{score}%</span>
+                  <span className="ring-caption">Compliant</span>
+                </div>
+              </div>
+              <div className="hero-text">
+                <h2>Overall Compliance Score</h2>
+                <p>{remediatedCount} of {total} findings remediated across all sources</p>
+              </div>
             </section>
-            <section className="score-section">
-              <div className="score-header"><span className="score-title">Compliance score</span><span className="score-percentage">{score}%</span></div>
-              <div className="score-track"><div className="score-fill" style={{ width: `${score}%`, backgroundColor: score > 70 ? '#16A34A' : score > 40 ? '#CA8A04' : '#DC2626' }}></div></div>
+
+            <section className="stats-grid">
+              <div className="stat-card stripe-total">
+                <span className="stat-icon">🛡️</span>
+                <div>
+                  <span className="stat-number">{total}</span>
+                  <span className="stat-label">Total findings</span>
+                </div>
+              </div>
+              <div className="stat-card stripe-critical">
+                <span className="stat-icon">🔺</span>
+                <div>
+                  <span className="stat-number accent-critical">{criticalCount}</span>
+                  <span className="stat-label">Critical</span>
+                </div>
+              </div>
+              <div className="stat-card stripe-open">
+                <span className="stat-icon">⏱️</span>
+                <div>
+                  <span className="stat-number accent-open">{openCount}</span>
+                  <span className="stat-label">Open</span>
+                </div>
+              </div>
+              <div className="stat-card stripe-resolved">
+                <span className="stat-icon">✅</span>
+                <div>
+                  <span className="stat-number accent-resolved">{resolvedCount}</span>
+                  <span className="stat-label">Resolved</span>
+                </div>
+              </div>
             </section>
           </>
         )}
 
         {(page === 'findings' || page === 'dashboard') && (
           <>
+            <div className="chevron-nav">
+              <div className="chevron-step" style={{ background: '#6D28D9' }}>
+                Open <span className="chevron-count">{openOnlyCount}</span>
+              </div>
+              <div className="chevron-step" style={{ background: '#7C3AED' }}>
+                In Progress <span className="chevron-count">{inProgressCount}</span>
+              </div>
+              <div className="chevron-step" style={{ background: '#8B5CF6' }}>
+                Resolved <span className="chevron-count">{resolvedOnlyCount}</span>
+              </div>
+              <div className="chevron-step" style={{ background: '#A78BFA' }}>
+                Verified <span className="chevron-count">{verifiedCount}</span>
+              </div>
+            </div>
+
             <section className="filter-section">
               <input type="text" className="search-input" placeholder="Search findings..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               <select className="filter-select" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
