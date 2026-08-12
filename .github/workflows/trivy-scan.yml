@@ -109,7 +109,7 @@ jobs:
         run: docker build --no-cache -t backend:latest .
 
       - name: Run Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'backend:latest'
           format: 'json'
@@ -120,7 +120,7 @@ jobs:
 
       - name: Generate SBOM
         if: always()
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: 'backend:latest'
           format: 'cyclonedx'
