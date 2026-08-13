@@ -12,7 +12,7 @@
     "express": "^4.18.2",
     "express-rate-limit": "^8.6.2",
     "helmet": "^8.3.0",
-    "mongoose": "^9.9.1",
+    "mongoose": "^6.12.0",
     "nodemailer": "^9.0.5",
     "socket.io": "^4.7.2"
   }
