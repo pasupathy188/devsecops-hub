@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Scan backend dependencies
         run: |
@@ -138,52 +138,8 @@ jobs:
             --max-time 30 \
             --fail-with-body || echo "Failed to store raw scan (non-fatal)"
 
-      - name: Post findings to Compliance Hub API
-        env:
-          API_KEY: ${{ secrets.COMPLIANCE_API_KEY }}
-        run: |
-          cat > post_findings.py << 'EOF'
-          import json
-          import os
-          import requests
-
-          api_url = 'https://devsecops-hub-8qlr.onrender.com/api/findings'
-          api_key = os.environ.get('API_KEY', '')
-
-          try:
-              with open('trivy-output.json', 'r') as f:
-                  data = json.load(f)
-          except FileNotFoundError:
-              print('No trivy-output.json found.')
-              exit(0)
-
-          count = 0
-          for result in data.get('Results', []):
-              for vuln in result.get('Vulnerabilities', []):
-                  severity = vuln.get('Severity', 'MEDIUM')
-                  if severity not in ['CRITICAL', 'HIGH']:
-                      continue
-                  description = f"{vuln.get('VulnerabilityID')} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})"
-                  payload = {
-                      'description': description,
-                      'severity': severity,
-                      'status': 'Open',
-                      'remediated': False
-                  }
-                  try:
-                      response = requests.post(api_url, json=payload, headers={'X-API-Key': api_key})
-                      if response.status_code in [200, 201]:
-                          count += 1
-                          print(f'Added: {description[:50]}...')
-                  except Exception as e:
-                      print(f'Error: {e}')
-          print(f'Added {count} findings.')
-          EOF
-
-          python3 post_findings.py
-
       - name: Upload scan artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: trivy-reports
