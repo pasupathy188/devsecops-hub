@@ -40,3 +40,15 @@ application's actual dependency tree.
 
 This is a portfolio/learning project. If you notice something concerning,
 open an issue on the repository.
+
+## Verified Pipeline Behavior
+
+The CI/CD security gate was manually tested by intentionally reintroducing a
+known-vulnerable dependency (mongoose 6.12.0, containing CVE-2025-23061 and
+related CVEs). The pipeline correctly:
+- Detected the vulnerability via both Trivy (container scan) and npm audit
+- Blocked the build (exit-code: 1) instead of allowing it to pass
+- Populated the finding in the compliance dashboard with correct severity and source
+
+The dependency was then restored to a patched version and the pipeline
+confirmed green again, validating the full scan-gate-report loop end to end.
