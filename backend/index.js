@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const nodemailer = require('nodemailer');
+const client = require('prom-client');
 
 mongoose.set('strictQuery', false);
 
@@ -77,6 +78,52 @@ const SettingsSchema = new mongoose.Schema({
 });
 const Settings = mongoose.model('Settings', SettingsSchema);
 
+// ============================================================
+//  PROMETHEUS METRICS
+// ============================================================
+const register = new client.Registry();
+client.collectDefaultMetrics({ register });
+
+const findingsGauge = new client.Gauge({
+    name: 'compliance_findings_total',
+    help: 'Current findings count by severity and status',
+    labelNames: ['severity', 'status'],
+    registers: [register]
+});
+
+const scansCounter = new client.Counter({
+    name: 'compliance_scans_total',
+    help: 'Total number of scans recorded',
+    registers: [register]
+});
+
+const scanCriticalGauge = new client.Gauge({
+    name: 'compliance_latest_scan_critical',
+    help: 'Critical vulnerability count from the most recent scan',
+    registers: [register]
+});
+
+const scanHighGauge = new client.Gauge({
+    name: 'compliance_latest_scan_high',
+    help: 'High vulnerability count from the most recent scan',
+    registers: [register]
+});
+
+async function updateFindingsMetrics() {
+    try {
+        const severities = ['Critical', 'High', 'Medium', 'Low'];
+        const statuses = ['Open', 'In Progress', 'Resolved', 'Verified'];
+        for (const severity of severities) {
+            for (const status of statuses) {
+                const count = await Finding.countDocuments({ severity, status });
+                findingsGauge.set({ severity, status }, count);
+            }
+        }
+    } catch (err) {
+        console.error('Error updating findings metrics:', err.message);
+    }
+}
+
 async function checkThresholdsAndAlert(scanCritical, scanHigh) {
     try {
         const settings = await Settings.findOne();
@@ -118,6 +165,23 @@ async function checkThresholdsAndAlert(scanCritical, scanHigh) {
     }
 }
 
+// ============================================================
+//  METRICS ROUTE
+// ============================================================
+app.get('/metrics', async (req, res) => {
+    try {
+        await updateFindingsMetrics();
+        res.set('Content-Type', register.contentType);
+        res.end(await register.metrics());
+    } catch (err) {
+        console.error('Error generating metrics:', err.message);
+        res.status(500).end();
+    }
+});
+
+// ============================================================
+//  FINDINGS ROUTES
+// ============================================================
 app.get('/api/findings', async (req, res) => {
     try {
         const findings = await Finding.find().sort({ createdAt: -1 });
@@ -197,6 +261,9 @@ app.delete('/api/findings/:id', requireApiKey, async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// ============================================================
+//  SCANS ROUTES
+// ============================================================
 app.get('/api/scans', async (req, res) => {
     try {
         const scans = await Scan.find().sort({ scannedAt: -1 });
@@ -253,6 +320,10 @@ app.post('/api/scans', requireApiKey, async (req, res) => {
         }
 
         checkThresholdsAndAlert(critical, high);
+        scansCounter.inc();
+        scanCriticalGauge.set(critical);
+        scanHighGauge.set(high);
+
         res.status(201).json({ message: 'Scan report stored', scanId: scan._id, findingsAdded });
     } catch (error) {
         console.error('Error storing scan:', error);
@@ -270,6 +341,9 @@ app.get('/api/scans/:id/download', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// ============================================================
+//  SETTINGS ROUTES
+// ============================================================
 app.get('/api/settings', async (req, res) => {
     try {
         let settings = await Settings.findOne();
