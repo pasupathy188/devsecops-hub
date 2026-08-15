@@ -1,6 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
 import './App.css';
-const API_KEY = process.env.REACT_APP_API_KEY;
 
 const ICONS = {
   dashboard: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>,
@@ -25,40 +24,49 @@ function App() {
   const [scans, setScans] = useState([]);
   const [scansLoading, setScansLoading] = useState(false);
   const [scansError, setScansError] = useState('');
-
+  const [lastScanDate, setLastScanDate] = useState(null);
   const [settings, setSettings] = useState(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3500/api/findings';
+  // Use environment variables – no hardcoded URLs
+  const API_BASE = process.env.REACT_APP_API_BASE || 'https://devsecops-hub-8qlr.onrender.com';
+  const API_URL = `${API_BASE}/api/findings`;
+  const API_KEY = process.env.REACT_APP_API_KEY;
+
+  // 1. Fetch findings
+  const fetchFindings = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(API_URL);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const data = await response.json();
+      setFindings(data);
+    } catch (err) {
+      console.error('Error fetching findings:', err);
+      setError('Failed to load findings.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchFindings = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(API_URL);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        setFindings(data);
-      } catch (err) {
-        console.error('Error fetching findings:', err);
-        setError('Failed to load findings.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchFindings();
   }, [API_URL]);
 
+  // 2. Fetch scans (only when on Scans page)
   useEffect(() => {
     if (page === 'scans') {
       const fetchScans = async () => {
         try {
           setScansLoading(true);
-          const response = await fetch('https://devsecops-hub-8qlr.onrender.com/api/scans');
+          const response = await fetch(`${API_BASE}/api/scans`);
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
           const data = await response.json();
           setScans(data);
+          if (data.length > 0) {
+            setLastScanDate(data[0].scannedAt);
+          }
         } catch (err) {
           console.error('Error fetching scans:', err);
           setScansError('Failed to load scan history.');
@@ -68,13 +76,14 @@ function App() {
       };
       fetchScans();
     }
-  }, [page]);
+  }, [page, API_BASE]);
 
+  // 3. Fetch settings (only when on Settings page)
   useEffect(() => {
     if (page === 'settings') {
       const fetchSettings = async () => {
         try {
-          const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings');
+          const res = await fetch(`${API_BASE}/api/settings`);
           const data = await res.json();
           setSettings(data);
         } catch (err) {
@@ -83,8 +92,9 @@ function App() {
       };
       fetchSettings();
     }
-  }, [page]);
+  }, [page, API_BASE]);
 
+  // 4. Update finding (PUT)
   const updateFinding = async (id, updates) => {
     try {
       const response = await fetch(`${API_URL}/${id}`, {
@@ -101,6 +111,7 @@ function App() {
     }
   };
 
+  // 5. Delete finding (DELETE)
   const deleteFinding = async (id) => {
     if (!window.confirm('Delete this finding? This cannot be undone.')) return;
     try {
@@ -116,11 +127,12 @@ function App() {
     }
   };
 
+  // 6. Save settings (PUT)
   const saveSettings = async () => {
     setSettingsSaving(true);
     setSettingsSaved(false);
     try {
-      const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
+      const res = await fetch(`${API_BASE}/api/settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
         body: JSON.stringify(settings)
@@ -136,10 +148,24 @@ function App() {
     }
   };
 
+  // 7. Download scan report
   const downloadReport = (scanId) => {
-    window.open(`https://devsecops-hub-8qlr.onrender.com/api/scans/${scanId}/download`, '_blank');
+    window.open(`${API_BASE}/api/scans/${scanId}/download`, '_blank');
   };
 
+  // 8. Sync (manual refresh)
+  const handleSync = () => {
+    fetchFindings();
+  };
+
+  // 9. Clear all filters
+  const clearFilters = () => {
+    setSearchTerm('');
+    setFilterSeverity('All');
+    setFilterStatus('All');
+  };
+
+  // 10. Filter logic
   const filteredFindings = findings.filter(f => {
     const matchesSearch = f.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSeverity = filterSeverity === 'All' || f.severity === filterSeverity;
@@ -147,8 +173,12 @@ function App() {
     return matchesSearch && matchesSeverity && matchesStatus;
   });
 
+  // 11. Stats
   const total = findings.length;
   const criticalCount = findings.filter(f => f.severity === 'Critical').length;
+  const highCount = findings.filter(f => f.severity === 'High').length;
+  const mediumCount = findings.filter(f => f.severity === 'Medium').length;
+  const lowCount = findings.filter(f => f.severity === 'Low').length;
   const openCount = findings.filter(f => f.status === 'Open' || f.status === 'In Progress').length;
   const resolvedCount = findings.filter(f => f.status === 'Resolved' || f.status === 'Verified').length;
   const remediatedCount = findings.filter(f => f.remediated).length;
@@ -159,6 +189,7 @@ function App() {
   const resolvedOnlyCount = findings.filter(f => f.status === 'Resolved').length;
   const verifiedCount = findings.filter(f => f.status === 'Verified').length;
 
+  // 12. Helpers
   const getStatusStyle = (status) => {
     const styles = {
       'Open': { bg: 'rgba(220,38,38,0.08)', color: '#B91C1C' },
@@ -183,6 +214,7 @@ function App() {
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
+      {/* ===== SIDEBAR ===== */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <span className="sidebar-logo">{ICONS.shield}</span>
@@ -203,6 +235,7 @@ function App() {
             <span className="nav-icon">{ICONS.settings}</span>Settings
           </a>
         </nav>
+
         <div className="sidebar-footer">
           <button className="theme-toggle-btn" onClick={() => setDarkMode(!darkMode)}>
             {darkMode ? ICONS.sun : ICONS.moon}
@@ -210,7 +243,10 @@ function App() {
         </div>
       </aside>
 
+      {/* ===== MAIN CONTENT ===== */}
       <main className="main-content">
+
+        {/* ===== DASHBOARD ===== */}
         {page === 'dashboard' && (
           <>
             <header className="top-header">
@@ -218,10 +254,17 @@ function App() {
                 <h1 className="page-title">Dashboard</h1>
                 <p className="page-subtitle">Security compliance overview</p>
               </div>
-              <span className="live-badge"><span className="live-dot"></span>Live</span>
+              <div className="header-actions">
+                <span className="live-badge"><span className="live-dot"></span>Live</span>
+                <span className="scan-status">
+                  <span className="status-dot"></span>
+                  {lastScanDate ? `Last scan: ${new Date(lastScanDate).toLocaleDateString()}` : 'No scans yet'}
+                </span>
+              </div>
             </header>
             {error && <div className="error-banner">{error}</div>}
 
+            {/* Hero Banner */}
             <section className="hero-banner">
               <div className="hero-ring">
                 <svg viewBox="0 0 120 120" className="ring-svg">
@@ -247,6 +290,15 @@ function App() {
               </div>
             </section>
 
+            {/* Severity Distribution Bar */}
+            <div className="severity-distribution">
+              <div className="dist-bar critical" style={{ width: `${total ? (criticalCount / total) * 100 : 0}%` }}></div>
+              <div className="dist-bar high" style={{ width: `${total ? (highCount / total) * 100 : 0}%` }}></div>
+              <div className="dist-bar medium" style={{ width: `${total ? (mediumCount / total) * 100 : 0}%` }}></div>
+              <div className="dist-bar low" style={{ width: `${total ? (lowCount / total) * 100 : 0}%` }}></div>
+            </div>
+
+            {/* Stats */}
             <section className="stats-grid">
               <div className="stat-card stripe-total">
                 <span className="stat-icon">🛡️</span>
@@ -280,8 +332,10 @@ function App() {
           </>
         )}
 
+        {/* ===== FINDINGS ===== */}
         {(page === 'findings' || page === 'dashboard') && (
           <>
+            {/* Chevron Workflow */}
             <div className="chevron-nav">
               <div className="chevron-step" style={{ background: '#6D28D9' }}>
                 Open <span className="chevron-count">{openOnlyCount}</span>
@@ -297,8 +351,15 @@ function App() {
               </div>
             </div>
 
+            {/* Filters */}
             <section className="filter-section">
-              <input type="text" className="search-input" placeholder="Search findings..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <input
+                type="text"
+                className="search-input"
+                placeholder="Search findings..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
               <select className="filter-select" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
                 <option value="All">All severities</option>
                 <option value="Critical">Critical</option>
@@ -313,12 +374,32 @@ function App() {
                 <option value="Resolved">Resolved</option>
                 <option value="Verified">Verified</option>
               </select>
-              <span className="result-count">{filteredFindings.length} results</span>
+              <button className="sync-btn" onClick={handleSync} disabled={loading}>
+                {loading ? '⟳' : '⟳'} Sync
+              </button>
+              <span className="result-count">
+                {filteredFindings.length} results
+                {(filterSeverity !== 'All' || filterStatus !== 'All' || searchTerm) && (
+                  <button className="clear-filters" onClick={clearFilters}>
+                    ✕ Clear filters
+                  </button>
+                )}
+              </span>
             </section>
 
+            {/* Table */}
             <section className="table-section">
               <table className="findings-table">
-                <thead><tr><th>ID</th><th>Finding</th><th>Source</th><th>Severity</th><th>Status</th><th></th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Finding</th>
+                    <th>Source</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
                 <tbody>
                   {loading ? (
                     <tr><td colSpan="6" className="empty-message">Loading findings…</td></tr>
@@ -327,15 +408,32 @@ function App() {
                   ) : (
                     filteredFindings.map((finding, index) => {
                       const statusStyle = getStatusStyle(finding.status);
+                      const daysOpen = Math.floor((new Date() - new Date(finding.createdAt)) / (1000 * 60 * 60 * 24));
                       return (
                         <tr key={finding._id} className={finding.remediated ? 'remediated' : ''} style={{ borderLeft: `3px solid ${getSeverityColor(finding.severity)}` }}>
                           <td className="mono-cell">{getFindingId(index)}</td>
-                          <td>{finding.description}</td>
+                          <td>
+                            {finding.description}
+                            <span className="age-badge" style={{ color: daysOpen > 30 ? '#DC2626' : daysOpen > 7 ? '#F97316' : '#6B7280' }}>
+                              {daysOpen}d
+                            </span>
+                          </td>
                           <td><span className="source-badge">{finding.source || 'trivy'}</span></td>
                           <td className="mono-cell" style={{ color: getSeverityColor(finding.severity) }}>{finding.severity}</td>
-                          <td><span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>{finding.status}</span></td>
+                          <td>
+                            <span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>
+                              {finding.status}
+                            </span>
+                          </td>
                           <td className="actions-cell">
-                            <select className="status-select-mini" value={finding.status} onChange={(e) => updateFinding(finding._id, { status: e.target.value, remediated: e.target.value === 'Resolved' || e.target.value === 'Verified' })}>
+                            <select
+                              className="status-select-mini"
+                              value={finding.status}
+                              onChange={(e) => updateFinding(finding._id, {
+                                status: e.target.value,
+                                remediated: e.target.value === 'Resolved' || e.target.value === 'Verified'
+                              })}
+                            >
                               <option value="Open">Open</option>
                               <option value="In Progress">In Progress</option>
                               <option value="Resolved">Resolved</option>
@@ -353,6 +451,7 @@ function App() {
           </>
         )}
 
+        {/* ===== SCANS ===== */}
         {page === 'scans' && (
           <>
             <header className="top-header">
@@ -363,6 +462,7 @@ function App() {
               <span className="live-badge"><span className="live-dot"></span>{scans.length} scans</span>
             </header>
             {scansError && <div className="error-banner">{scansError}</div>}
+
             <section className="table-section">
               {scansLoading ? (
                 <div className="empty-message">Loading scan history…</div>
@@ -373,7 +473,17 @@ function App() {
                 </div>
               ) : (
                 <table className="findings-table">
-                  <thead><tr><th>Scan ID</th><th>Date</th><th>Image</th><th>Total</th><th>Critical</th><th>High</th><th>Report</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th>Scan ID</th>
+                      <th>Date</th>
+                      <th>Image</th>
+                      <th>Total</th>
+                      <th>Critical</th>
+                      <th>High</th>
+                      <th>Report</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {scans.map((scan, index) => (
                       <tr key={scan._id}>
@@ -393,6 +503,7 @@ function App() {
           </>
         )}
 
+        {/* ===== SETTINGS ===== */}
         {page === 'settings' && (
           <>
             <header className="top-header">
