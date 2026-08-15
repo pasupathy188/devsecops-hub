@@ -138,6 +138,87 @@ jobs:
             --max-time 30 \
             --fail-with-body || echo "Failed to store raw scan (non-fatal)"
 
+      - name: Fetch Settings & Send Smart Slack Alert
+        if: always()
+        env:
+          API_KEY: ${{ secrets.COMPLIANCE_API_KEY }}
+        run: |
+          if [ ! -f "trivy-output.json" ]; then
+            echo "⚠️ No trivy-output.json found. Skipping alert."
+            exit 0
+          fi
+
+          echo "📡 Fetching alert thresholds from settings..."
+          curl -s -H "X-API-Key: $API_KEY" "https://devsecops-hub-8qlr.onrender.com/api/settings" > settings.json
+
+          CRITICAL_THRESHOLD=$(jq '.criticalThreshold // 0' settings.json)
+          HIGH_THRESHOLD=$(jq '.highThreshold // 0' settings.json)
+          SLACK_WEBHOOK=$(jq -r '.slackWebhookUrl // ""' settings.json)
+
+          echo "⚙️  Critical Threshold: $CRITICAL_THRESHOLD"
+          echo "⚙️  High Threshold: $HIGH_THRESHOLD"
+
+          CRITICAL_COUNT=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-output.json)
+          HIGH_COUNT=$(jq '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-output.json)
+
+          echo "📊 Found Critical: $CRITICAL_COUNT, High: $HIGH_COUNT"
+
+          if [ "$CRITICAL_COUNT" -gt "$CRITICAL_THRESHOLD" ] || [ "$HIGH_COUNT" -gt "$HIGH_THRESHOLD" ]; then
+            if [ -n "$SLACK_WEBHOOK" ]; then
+              echo "🚨 Thresholds exceeded! Sending Slack alert..."
+              curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"🚨 *COMPLIANCE ALERT!*\n• Critical: $CRITICAL_COUNT (threshold: $CRITICAL_THRESHOLD)\n• High: $HIGH_COUNT (threshold: $HIGH_THRESHOLD)\n• View: https://devsecops-hub.vercel.app\"}" "$SLACK_WEBHOOK"
+              echo "✅ Slack alert sent."
+            else
+              echo "⚠️ No Slack webhook URL found in settings. Skipping."
+            fi
+          else
+            echo "✅ All findings within thresholds. No alert needed."
+          fi
+
+      - name: Post findings to Compliance Hub API
+        env:
+          API_KEY: ${{ secrets.COMPLIANCE_API_KEY }}
+        run: |
+          cat > post_findings.py << 'EOF'
+          import json
+          import os
+          import requests
+
+          api_url = 'https://devsecops-hub-8qlr.onrender.com/api/findings'
+          api_key = os.environ.get('API_KEY', '')
+
+          try:
+              with open('trivy-output.json', 'r') as f:
+                  data = json.load(f)
+          except FileNotFoundError:
+              print('No trivy-output.json found.')
+              exit(0)
+
+          count = 0
+          for result in data.get('Results', []):
+              for vuln in result.get('Vulnerabilities', []):
+                  severity = vuln.get('Severity', 'MEDIUM')
+                  if severity not in ['CRITICAL', 'HIGH']:
+                      continue
+                  description = f"{vuln.get('VulnerabilityID')} - {vuln.get('Title', vuln.get('Description', ''))[:100]} (Package: {vuln.get('PkgName', 'Unknown')})"
+                  payload = {
+                      'description': description,
+                      'severity': severity,
+                      'status': 'Open',
+                      'remediated': False
+                  }
+                  try:
+                      response = requests.post(api_url, json=payload, headers={'X-API-Key': api_key})
+                      if response.status_code in [200, 201]:
+                          count += 1
+                          print(f'Added: {description[:50]}...')
+                  except Exception as e:
+                      print(f'Error: {e}')
+          print(f'Added {count} findings.')
+          EOF
+
+          python3 post_findings.py
+
       - name: Upload scan artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always()
