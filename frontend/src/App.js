@@ -1,15 +1,16 @@
 ﻿import React, { useState, useEffect } from 'react';
 import './App.css';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
+
+const API_KEY = process.env.REACT_APP_API_KEY;
 
 const ICONS = {
   dashboard: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>,
   findings: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
   scans: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M9 3H5a2 2 0 0 0-2 2v4M15 3h4a2 2 0 0 1 2 2v4M9 21H5a2 2 0 0 1-2-2v-4M15 21h4a2 2 0 0 0 2-2v-4"/></svg>,
   settings: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  sun: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>,
-  moon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
   trash: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/></svg>,
-  shield: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2l8 3.5v6c0 5-3.4 8.7-8 10.5-4.6-1.8-8-5.5-8-10.5v-6L12 2z"/></svg>
+  shield: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 2l8 3.5v6c0 5-3.4 8.7-8 10.5-4.6-1.8-8-5.5-8-10.5v-6L12 2z"/></svg>
 };
 
 function App() {
@@ -19,54 +20,47 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
-  const [darkMode, setDarkMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [scans, setScans] = useState([]);
   const [scansLoading, setScansLoading] = useState(false);
   const [scansError, setScansError] = useState('');
-  const [lastScanDate, setLastScanDate] = useState(null);
+
   const [settings, setSettings] = useState(null);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  // Use environment variables – no hardcoded URLs
-  const API_BASE = process.env.REACT_APP_API_BASE || 'https://devsecops-hub-8qlr.onrender.com';
-  const API_URL = `${API_BASE}/api/findings`;
-  const API_KEY = process.env.REACT_APP_API_KEY;
+  const [sortField, setSortField] = useState('severity');
+  const [sortDir, setSortDir] = useState('desc');
 
-  // 1. Fetch findings
-  const fetchFindings = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(API_URL);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setFindings(data);
-    } catch (err) {
-      console.error('Error fetching findings:', err);
-      setError('Failed to load findings.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const API_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3500/api/findings';
 
   useEffect(() => {
+    const fetchFindings = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(API_URL);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        setFindings(data);
+      } catch (err) {
+        console.error('Error fetching findings:', err);
+        setError('Failed to load findings.');
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchFindings();
   }, [API_URL]);
 
-  // 2. Fetch scans (only when on Scans page)
   useEffect(() => {
-    if (page === 'scans') {
+    if (page === 'scans' || page === 'dashboard') {
       const fetchScans = async () => {
         try {
           setScansLoading(true);
-          const response = await fetch(`${API_BASE}/api/scans`);
+          const response = await fetch('https://devsecops-hub-8qlr.onrender.com/api/scans');
           if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
           const data = await response.json();
           setScans(data);
-          if (data.length > 0) {
-            setLastScanDate(data[0].scannedAt);
-          }
         } catch (err) {
           console.error('Error fetching scans:', err);
           setScansError('Failed to load scan history.');
@@ -76,14 +70,13 @@ function App() {
       };
       fetchScans();
     }
-  }, [page, API_BASE]);
+  }, [page]);
 
-  // 3. Fetch settings (only when on Settings page)
   useEffect(() => {
     if (page === 'settings') {
       const fetchSettings = async () => {
         try {
-          const res = await fetch(`${API_BASE}/api/settings`);
+          const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings');
           const data = await res.json();
           setSettings(data);
         } catch (err) {
@@ -92,9 +85,8 @@ function App() {
       };
       fetchSettings();
     }
-  }, [page, API_BASE]);
+  }, [page]);
 
-  // 4. Update finding (PUT)
   const updateFinding = async (id, updates) => {
     try {
       const response = await fetch(`${API_URL}/${id}`, {
@@ -111,7 +103,6 @@ function App() {
     }
   };
 
-  // 5. Delete finding (DELETE)
   const deleteFinding = async (id) => {
     if (!window.confirm('Delete this finding? This cannot be undone.')) return;
     try {
@@ -127,12 +118,11 @@ function App() {
     }
   };
 
-  // 6. Save settings (PUT)
   const saveSettings = async () => {
     setSettingsSaving(true);
     setSettingsSaved(false);
     try {
-      const res = await fetch(`${API_BASE}/api/settings`, {
+      const res = await fetch('https://devsecops-hub-8qlr.onrender.com/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-API-Key': API_KEY },
         body: JSON.stringify(settings)
@@ -148,24 +138,10 @@ function App() {
     }
   };
 
-  // 7. Download scan report
   const downloadReport = (scanId) => {
-    window.open(`${API_BASE}/api/scans/${scanId}/download`, '_blank');
+    window.open(`https://devsecops-hub-8qlr.onrender.com/api/scans/${scanId}/download`, '_blank');
   };
 
-  // 8. Sync (manual refresh)
-  const handleSync = () => {
-    fetchFindings();
-  };
-
-  // 9. Clear all filters
-  const clearFilters = () => {
-    setSearchTerm('');
-    setFilterSeverity('All');
-    setFilterStatus('All');
-  };
-
-  // 10. Filter logic
   const filteredFindings = findings.filter(f => {
     const matchesSearch = f.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSeverity = filterSeverity === 'All' || f.severity === filterSeverity;
@@ -173,12 +149,22 @@ function App() {
     return matchesSearch && matchesSeverity && matchesStatus;
   });
 
-  // 11. Stats
+  const severityOrder = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+  const sortedFindings = [...filteredFindings].sort((a, b) => {
+    let cmp = 0;
+    if (sortField === 'severity') cmp = severityOrder[a.severity] - severityOrder[b.severity];
+    else if (sortField === 'status') cmp = a.status.localeCompare(b.status);
+    else if (sortField === 'description') cmp = a.description.localeCompare(b.description);
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const toggleSort = (field) => {
+    if (sortField === field) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDir('desc'); }
+  };
+
   const total = findings.length;
   const criticalCount = findings.filter(f => f.severity === 'Critical').length;
-  const highCount = findings.filter(f => f.severity === 'High').length;
-  const mediumCount = findings.filter(f => f.severity === 'Medium').length;
-  const lowCount = findings.filter(f => f.severity === 'Low').length;
   const openCount = findings.filter(f => f.status === 'Open' || f.status === 'In Progress').length;
   const resolvedCount = findings.filter(f => f.status === 'Resolved' || f.status === 'Verified').length;
   const remediatedCount = findings.filter(f => f.remediated).length;
@@ -189,20 +175,29 @@ function App() {
   const resolvedOnlyCount = findings.filter(f => f.status === 'Resolved').length;
   const verifiedCount = findings.filter(f => f.status === 'Verified').length;
 
-  // 12. Helpers
+  const scanTrendData = scans
+    .slice()
+    .reverse()
+    .slice(-10)
+    .map((scan) => ({
+      name: new Date(scan.scannedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      critical: scan.critical || 0,
+      high: scan.high || 0
+    }));
+
   const getStatusStyle = (status) => {
     const styles = {
-      'Open': { bg: 'rgba(220,38,38,0.08)', color: '#B91C1C' },
-      'In Progress': { bg: 'rgba(217,119,6,0.1)', color: '#B45309' },
-      'Resolved': { bg: 'rgba(22,163,74,0.1)', color: '#15803D' },
-      'Verified': { bg: 'rgba(79,70,229,0.1)', color: '#4338CA' }
+      'Open': { bg: 'rgba(239,68,68,0.1)', color: '#F87171' },
+      'In Progress': { bg: 'rgba(245,158,11,0.1)', color: '#FBBF24' },
+      'Resolved': { bg: 'rgba(52,211,153,0.1)', color: '#34D399' },
+      'Verified': { bg: 'rgba(6,182,212,0.1)', color: '#22D3EE' }
     };
-    return styles[status] || { bg: '#f1f1f1', color: '#6b7280' };
+    return styles[status] || { bg: '#1E293B', color: '#94A3B8' };
   };
 
   const getSeverityColor = (sev) => {
-    const map = { 'Critical': '#DC2626', 'High': '#EA580C', 'Medium': '#CA8A04', 'Low': '#16A34A' };
-    return map[sev] || '#6b7280';
+    const map = { 'Critical': '#EF4444', 'High': '#F97316', 'Medium': '#F59E0B', 'Low': '#22C55E' };
+    return map[sev] || '#64748B';
   };
 
   const getFindingId = (index) => `VULN-${String(index + 1).padStart(3, '0')}`;
@@ -213,8 +208,7 @@ function App() {
   };
 
   return (
-    <div className={`app ${darkMode ? 'dark' : ''}`}>
-      {/* ===== SIDEBAR ===== */}
+    <div className="app">
       <aside className="sidebar">
         <div className="sidebar-header">
           <span className="sidebar-logo">{ICONS.shield}</span>
@@ -235,18 +229,9 @@ function App() {
             <span className="nav-icon">{ICONS.settings}</span>Settings
           </a>
         </nav>
-
-        <div className="sidebar-footer">
-          <button className="theme-toggle-btn" onClick={() => setDarkMode(!darkMode)}>
-            {darkMode ? ICONS.sun : ICONS.moon}
-          </button>
-        </div>
       </aside>
 
-      {/* ===== MAIN CONTENT ===== */}
       <main className="main-content">
-
-        {/* ===== DASHBOARD ===== */}
         {page === 'dashboard' && (
           <>
             <header className="top-header">
@@ -254,17 +239,56 @@ function App() {
                 <h1 className="page-title">Dashboard</h1>
                 <p className="page-subtitle">Security compliance overview</p>
               </div>
-              <div className="header-actions">
-                <span className="live-badge"><span className="live-dot"></span>Live</span>
-                <span className="scan-status">
-                  <span className="status-dot"></span>
-                  {lastScanDate ? `Last scan: ${new Date(lastScanDate).toLocaleDateString()}` : 'No scans yet'}
-                </span>
-              </div>
+              <span className="live-badge"><span className="live-dot"></span>Live</span>
             </header>
             {error && <div className="error-banner">{error}</div>}
 
-            {/* Hero Banner */}
+            <section className="dark-panel">
+              <div className="panel-header">
+                <div className="panel-title-group">
+                  <span className="panel-icon">🛡️</span>
+                  <h2>Risk Assessments <span className="panel-count">{total}</span></h2>
+                </div>
+              </div>
+
+              <div className="chart-row">
+                <div className="chart-card">
+                  <div className="chart-label">Findings Trend (Last 10 Scans)</div>
+                  {scanTrendData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={scanTrendData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: '#64748B', fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1E293B', borderRadius: 6, color: '#E2E8F0' }} />
+                        <Bar dataKey="critical" fill="#EF4444" radius={[3, 3, 0, 0]} />
+                        <Bar dataKey="high" fill="#06B6D4" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="chart-empty">No scan history yet.</div>
+                  )}
+                </div>
+
+                <div className="floating-card">
+                  <div className="floating-card-header">Compliance Score</div>
+                  <div className="floating-score">{score}<span className="floating-score-unit">/100</span></div>
+                  <div className="floating-trend">
+                    <span className={score >= 70 ? 'trend-up' : 'trend-down'}>
+                      {score >= 70 ? '↑' : '↓'} {remediatedCount} remediated
+                    </span>
+                  </div>
+                  {scanTrendData.length > 0 && (
+                    <ResponsiveContainer width="100%" height={60}>
+                      <LineChart data={scanTrendData}>
+                        <Line type="monotone" dataKey="critical" stroke="#06B6D4" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </section>
+
             <section className="hero-banner">
               <div className="hero-ring">
                 <svg viewBox="0 0 120 120" className="ring-svg">
@@ -275,7 +299,7 @@ function App() {
                     style={{
                       strokeDasharray: 2 * Math.PI * 52,
                       strokeDashoffset: 2 * Math.PI * 52 * (1 - score / 100),
-                      stroke: score > 70 ? '#22C55E' : score > 40 ? '#EAB308' : '#EF4444'
+                      stroke: score > 70 ? '#34D399' : score > 40 ? '#FBBF24' : '#F87171'
                     }}
                   />
                 </svg>
@@ -290,21 +314,12 @@ function App() {
               </div>
             </section>
 
-            {/* Severity Distribution Bar */}
-            <div className="severity-distribution">
-              <div className="dist-bar critical" style={{ width: `${total ? (criticalCount / total) * 100 : 0}%` }}></div>
-              <div className="dist-bar high" style={{ width: `${total ? (highCount / total) * 100 : 0}%` }}></div>
-              <div className="dist-bar medium" style={{ width: `${total ? (mediumCount / total) * 100 : 0}%` }}></div>
-              <div className="dist-bar low" style={{ width: `${total ? (lowCount / total) * 100 : 0}%` }}></div>
-            </div>
-
-            {/* Stats */}
             <section className="stats-grid">
               <div className="stat-card stripe-total">
                 <span className="stat-icon">🛡️</span>
                 <div>
                   <span className="stat-number">{total}</span>
-                  <span className="stat-label">Total findings</span>
+                  <span className="stat-label">Total Findings</span>
                 </div>
               </div>
               <div className="stat-card stripe-critical">
@@ -332,34 +347,17 @@ function App() {
           </>
         )}
 
-        {/* ===== FINDINGS ===== */}
         {(page === 'findings' || page === 'dashboard') && (
           <>
-            {/* Chevron Workflow */}
             <div className="chevron-nav">
-              <div className="chevron-step" style={{ background: '#6D28D9' }}>
-                Open <span className="chevron-count">{openOnlyCount}</span>
-              </div>
-              <div className="chevron-step" style={{ background: '#7C3AED' }}>
-                In Progress <span className="chevron-count">{inProgressCount}</span>
-              </div>
-              <div className="chevron-step" style={{ background: '#8B5CF6' }}>
-                Resolved <span className="chevron-count">{resolvedOnlyCount}</span>
-              </div>
-              <div className="chevron-step" style={{ background: '#A78BFA' }}>
-                Verified <span className="chevron-count">{verifiedCount}</span>
-              </div>
+              <div className="chevron-step">Open <span className="chevron-count">{openOnlyCount}</span></div>
+              <div className="chevron-step">In Progress <span className="chevron-count">{inProgressCount}</span></div>
+              <div className="chevron-step">Resolved <span className="chevron-count">{resolvedOnlyCount}</span></div>
+              <div className="chevron-step">Verified <span className="chevron-count">{verifiedCount}</span></div>
             </div>
 
-            {/* Filters */}
             <section className="filter-section">
-              <input
-                type="text"
-                className="search-input"
-                placeholder="Search findings..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+              <input type="text" className="search-input" placeholder="Search findings..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
               <select className="filter-select" value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
                 <option value="All">All severities</option>
                 <option value="Critical">Critical</option>
@@ -374,66 +372,50 @@ function App() {
                 <option value="Resolved">Resolved</option>
                 <option value="Verified">Verified</option>
               </select>
-              <button className="sync-btn" onClick={handleSync} disabled={loading}>
-                {loading ? '⟳' : '⟳'} Sync
-              </button>
-              <span className="result-count">
-                {filteredFindings.length} results
-                {(filterSeverity !== 'All' || filterStatus !== 'All' || searchTerm) && (
-                  <button className="clear-filters" onClick={clearFilters}>
-                    ✕ Clear filters
-                  </button>
-                )}
-              </span>
+              <span className="result-count">{filteredFindings.length} results</span>
             </section>
 
-            {/* Table */}
             <section className="table-section">
               <table className="findings-table">
                 <thead>
                   <tr>
                     <th>ID</th>
-                    <th>Finding</th>
+                    <th className="sortable" onClick={() => toggleSort('description')}>
+                      Finding {sortField === 'description' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
                     <th>Source</th>
-                    <th>Severity</th>
-                    <th>Status</th>
+                    <th className="sortable" onClick={() => toggleSort('severity')}>
+                      Severity {sortField === 'severity' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th className="sortable" onClick={() => toggleSort('status')}>
+                      Status {sortField === 'status' && (sortDir === 'asc' ? '↑' : '↓')}
+                    </th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr><td colSpan="6" className="empty-message">Loading findings…</td></tr>
-                  ) : filteredFindings.length === 0 ? (
-                    <tr><td colSpan="6" className="empty-message">No findings match your filters.</td></tr>
+                  ) : sortedFindings.length === 0 ? (
+                    <tr><td colSpan="6" className="empty-message">
+                      <div className="empty-state">
+                        <span className="empty-icon">🔍</span>
+                        <p>No findings match your filters.</p>
+                        <span className="empty-subtext">Try adjusting your search or filter criteria.</span>
+                      </div>
+                    </td></tr>
                   ) : (
-                    filteredFindings.map((finding, index) => {
+                    sortedFindings.map((finding, index) => {
                       const statusStyle = getStatusStyle(finding.status);
-                      const daysOpen = Math.floor((new Date() - new Date(finding.createdAt)) / (1000 * 60 * 60 * 24));
                       return (
                         <tr key={finding._id} className={finding.remediated ? 'remediated' : ''} style={{ borderLeft: `3px solid ${getSeverityColor(finding.severity)}` }}>
                           <td className="mono-cell">{getFindingId(index)}</td>
-                          <td>
-                            {finding.description}
-                            <span className="age-badge" style={{ color: daysOpen > 30 ? '#DC2626' : daysOpen > 7 ? '#F97316' : '#6B7280' }}>
-                              {daysOpen}d
-                            </span>
-                          </td>
+                          <td>{finding.description}</td>
                           <td><span className="source-badge">{finding.source || 'trivy'}</span></td>
                           <td className="mono-cell" style={{ color: getSeverityColor(finding.severity) }}>{finding.severity}</td>
-                          <td>
-                            <span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>
-                              {finding.status}
-                            </span>
-                          </td>
+                          <td><span className="status-pill" style={{ backgroundColor: statusStyle.bg, color: statusStyle.color }}>{finding.status}</span></td>
                           <td className="actions-cell">
-                            <select
-                              className="status-select-mini"
-                              value={finding.status}
-                              onChange={(e) => updateFinding(finding._id, {
-                                status: e.target.value,
-                                remediated: e.target.value === 'Resolved' || e.target.value === 'Verified'
-                              })}
-                            >
+                            <select className="status-select-mini" value={finding.status} onChange={(e) => updateFinding(finding._id, { status: e.target.value, remediated: e.target.value === 'Resolved' || e.target.value === 'Verified' })}>
                               <option value="Open">Open</option>
                               <option value="In Progress">In Progress</option>
                               <option value="Resolved">Resolved</option>
@@ -451,7 +433,6 @@ function App() {
           </>
         )}
 
-        {/* ===== SCANS ===== */}
         {page === 'scans' && (
           <>
             <header className="top-header">
@@ -462,37 +443,29 @@ function App() {
               <span className="live-badge"><span className="live-dot"></span>{scans.length} scans</span>
             </header>
             {scansError && <div className="error-banner">{scansError}</div>}
-
             <section className="table-section">
               {scansLoading ? (
                 <div className="empty-message">Loading scan history…</div>
               ) : scans.length === 0 ? (
                 <div className="empty-message">
-                  No scans recorded yet.<br />
-                  <span style={{ fontSize: '13px', color: '#9095A3' }}>Push code to trigger a scan via the CI/CD pipeline.</span>
+                  <div className="empty-state">
+                    <span className="empty-icon">📋</span>
+                    <p>No scans recorded yet.</p>
+                    <span className="empty-subtext">Push code to trigger a scan via the CI/CD pipeline.</span>
+                  </div>
                 </div>
               ) : (
                 <table className="findings-table">
-                  <thead>
-                    <tr>
-                      <th>Scan ID</th>
-                      <th>Date</th>
-                      <th>Image</th>
-                      <th>Total</th>
-                      <th>Critical</th>
-                      <th>High</th>
-                      <th>Report</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th>Scan ID</th><th>Date</th><th>Image</th><th>Total</th><th>Critical</th><th>High</th><th>Report</th></tr></thead>
                   <tbody>
                     {scans.map((scan, index) => (
                       <tr key={scan._id}>
                         <td className="mono-cell">SCAN-{String(index + 1).padStart(3, '0')}</td>
                         <td>{new Date(scan.scannedAt).toLocaleString()}</td>
                         <td>{scan.imageName || 'backend:latest'}</td>
-                        <td>{scan.totalVulns || 0}</td>
-                        <td className="mono-cell" style={{ color: '#DC2626' }}>{scan.critical || 0}</td>
-                        <td className="mono-cell" style={{ color: '#EA580C' }}>{scan.high || 0}</td>
+                        <td className="mono-cell">{scan.totalVulns || 0}</td>
+                        <td className="mono-cell" style={{ color: '#F87171' }}>{scan.critical || 0}</td>
+                        <td className="mono-cell" style={{ color: '#FB923C' }}>{scan.high || 0}</td>
                         <td><button className="download-btn" onClick={() => downloadReport(scan._id)}>JSON</button></td>
                       </tr>
                     ))}
@@ -503,7 +476,6 @@ function App() {
           </>
         )}
 
-        {/* ===== SETTINGS ===== */}
         {page === 'settings' && (
           <>
             <header className="top-header">
@@ -518,7 +490,7 @@ function App() {
             ) : (
               <div className="settings-card">
                 <div className="settings-section">
-                  <h3 className="settings-section-title">Alert thresholds</h3>
+                  <h3 className="settings-section-title">Alert Thresholds</h3>
                   <p className="settings-section-desc">Get notified when findings exceed these counts.</p>
                   <div className="settings-row">
                     <label className="settings-label">Critical findings threshold</label>
@@ -543,7 +515,7 @@ function App() {
                 </div>
 
                 <div className="settings-section">
-                  <h3 className="settings-section-title">Alert destinations</h3>
+                  <h3 className="settings-section-title">Alert Destinations</h3>
                   <p className="settings-section-desc">Where to send notifications when thresholds are exceeded.</p>
                   <div className="settings-row">
                     <label className="settings-label">Alert email</label>
