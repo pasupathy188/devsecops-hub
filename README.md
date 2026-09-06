@@ -32,6 +32,8 @@ A full-stack platform that automatically scans container images, dependencies, a
 
 Most CI pipelines run a scanner and print a report — this one **enforces a policy**. Every push triggers a pipeline that scans code, dependencies, and the built container, blocks the build if it finds an unresolved Critical or High severity issue, and feeds every finding into a MongoDB-backed dashboard where it's tracked from `Open` through `In Progress`, `Resolved`, and `Verified`.
 
+Write access to the API — updating a finding's status, deleting a finding, changing alert settings, or posting new scan results — requires an API key. Read access (viewing the dashboard) is open, since it's a demo instance.
+
 ## Architecture
 
 ```
@@ -39,10 +41,10 @@ Most CI pipelines run a scanner and print a report — this one **enforces a pol
 │   Frontend    │─────▶│   Backend     │─────▶│  MongoDB    │
 │ React (Vercel)│ API  │ Express (Render)│      │  Atlas      │
 └──────────────┘      └──────────────┘      └─────────────┘
-                              ▲
-                              │ POST scan/finding results (API key auth)
-                    ┌──────────────────┐
-                    │ GitHub Actions     │
+                              ▲              │
+                              │ POST (API key)│ /metrics
+                    ┌──────────────────┐     ▼
+                    │ GitHub Actions     │  Prometheus + Grafana
                     │ DevSecOps Pipeline │
                     └──────────────────┘
                               │
@@ -54,15 +56,21 @@ Most CI pipelines run a scanner and print a report — this one **enforces a pol
 
 ## Pipeline stages (on every push to `main`)
 
-1. **Dependency audit** — `npm audit` on both `backend/` and `frontend/`
+1. **Dependency audit** — `npm audit` on both `backend/` and `frontend/`, with a documented ignore-list for known build-tool-only findings (Create React App's own unmaintained internal tooling — see `SECURITY.md`)
 2. **Static code analysis** — Semgrep, `p/security-audit` ruleset
-3. **Secrets scanning** — gitleaks, runs as a separate workflow on every push/PR
-4. **Container build** — Docker image built from the backend
-5. **Container vulnerability scan** — Trivy, `severity: CRITICAL,HIGH`, `exit-code: 1` (build fails on unresolved findings)
+3. **Secrets scanning** — Gitleaks CLI (run directly via Docker, not the wrapper GitHub Action, to avoid its license requirement on private repos), runs as a separate workflow on every push/PR
+4. **Container build** — Docker image built from the backend, `--no-cache` to guarantee a fresh dependency install every run
+5. **Container vulnerability scan** — Trivy, `severity: CRITICAL,HIGH`, `exit-code: 1` (build fails on unresolved findings) — **verified working via a deliberate test**, see below
 6. **SBOM generation** — CycloneDX format, uploaded as a build artifact
-7. **Result ingestion** — raw scan + parsed findings POSTed to the backend, deduplicated and linked to their source scan
+7. **Result ingestion** — raw scan + parsed findings POSTed to the backend (authenticated), deduplicated by CVE ID, and linked to their source scan
+
+All third-party GitHub Actions are **pinned to full commit SHAs**, not mutable version tags — closes the exact class of supply-chain attack that hit `aquasecurity/trivy-action` in March 2026 (tag hijacking on versions prior to `v0.35.0`; this project uses `v0.36.0`, released after the incident, now additionally pinned by SHA for defense in depth).
 
 False positives (e.g. CVEs in npm's own bundled CLI tooling inside the base image, verified via `npm ls` to not be part of the actual dependency tree) are explicitly documented and excluded via `backend/.trivyignore` — see [`SECURITY.md`](./SECURITY.md) for the full reasoning.
+
+### Verified end-to-end
+
+The security gate wasn't just assumed to work — it was tested. A known-vulnerable dependency (`mongoose@6.12.0`, carrying `CVE-2025-23061` and two related CVEs) was deliberately reintroduced, confirmed to correctly fail the pipeline and populate the dashboard with accurate findings, then reverted. Full details in `SECURITY.md`.
 
 ## Tech stack
 
@@ -73,26 +81,38 @@ False positives (e.g. CVEs in npm's own bundled CLI tooling inside the base imag
 | Database | MongoDB Atlas |
 | Real-time updates | Socket.io |
 | Containerization | Docker (non-root, multi-stage builds) |
-| CI/CD | GitHub Actions |
+| CI/CD | GitHub Actions (SHA-pinned) |
 | Vulnerability scanning | Trivy |
 | Static analysis (SAST) | Semgrep |
-| Secrets scanning | gitleaks |
+| Secrets scanning | Gitleaks (CLI via Docker) |
+| Metrics | prom-client (`/metrics` endpoint) |
 | Observability | Prometheus + Grafana |
 | Deployment | Render (API), Vercel (frontend), MongoDB Atlas (DB) |
 
 ## Security features
 
-- API key authentication on all write routes (`POST`/`PUT`/`DELETE`)
+- **API key authentication** on all write routes (`POST`/`PUT`/`DELETE`) — verified with both positive and negative tests (valid key succeeds, missing/invalid key returns `401`)
 - Rate limiting (`express-rate-limit`) and security headers (`helmet`)
 - Non-root Docker containers, `.dockerignore` on all images (no secrets baked into image layers)
 - Server-enforced consistency — `remediated` status is always derived server-side from `status`, never trusted from client input
 - Deduplicated findings — re-scanning the same target doesn't flood the database with repeat entries for an already-open finding
+- GitHub Actions pinned to commit SHAs, not mutable tags
+- Documented, investigated (not blindly suppressed) false-positive handling via `.trivyignore`
 
 ## Data model
 
 - **`Scan`** — one record per pipeline run: image name, timestamp, severity counts, full raw report
 - **`Finding`** — one vulnerability: CVE ID, description, severity, status, source (`trivy` / `semgrep` / `npm-audit`), linked back to the `Scan` that found it
 - **`Settings`** — alert thresholds and Slack/email destinations for the alerting system
+
+## Observability
+
+The backend exposes a `/metrics` endpoint in Prometheus format, tracking:
+- `compliance_findings_total{severity, status}` — current findings breakdown
+- `compliance_scans_total` — cumulative scan count
+- `compliance_latest_scan_critical` / `compliance_latest_scan_high` — most recent scan's severity counts
+
+Point a Prometheus instance at this endpoint and build Grafana panels for trend visualization over time, on top of the point-in-time view the dashboard already provides.
 
 ## Running locally
 
@@ -116,12 +136,13 @@ docker compose up --build
 
 ## Known limitations
 
-- Single shared API key rather than per-user authentication — sufficient for a single-maintainer project, not a production multi-user system
+- Single shared API key rather than per-user authentication — sufficient for a single-maintainer project, not a production multi-user system. (A multi-tenant, per-organization version with proper user accounts and data isolation is planned/in progress as a separate project.)
 - `k8s-manifests/` demonstrates Kubernetes orchestration knowledge but is not the live deployment path (Render/Vercel is)
 - Frontend build tooling (Create React App) has some unfixable `npm audit` findings in its own unmaintained build dependencies — documented in `SECURITY.md`, not shipped to production users
+- No automated tests beyond CRA's default boilerplate
 
-See [`SECURITY.md`](./SECURITY.md) for the full, honest breakdown of accepted risks and their justification.
+See [`SECURITY.md`](./SECURITY.md) for the full, honest breakdown of accepted risks, verified test results, and their justification.
 
 ## What I built this to demonstrate
 
-A real shift-left security pattern: scan early, scan often, enforce a standard before merge, and keep a compliance-grade audit trail (SBOM, scan history, remediation status) — not just a vulnerability list nobody reads.
+A real shift-left security pattern: scan early, scan often, enforce a standard before merge, and keep a compliance-grade audit trail (SBOM, scan history, remediation status) — not just a vulnerability list nobody reads. The pipeline's enforcement gate and API authentication were both deliberately tested to confirm they actually work, not just assumed to.
