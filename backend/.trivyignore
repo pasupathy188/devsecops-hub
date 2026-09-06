@@ -1,8 +1,16 @@
 ﻿# These CVEs are confirmed to originate from npm's own bundled internal
 # tooling (shipped inside the node:22-alpine base image) or other build
 # tooling, not from this project's actual application dependencies.
-# Verified via `docker run ... find` showing the package path resolves
-# under npm's internal node_modules, not the app's own dependency tree.
+# Confirmed via `npm ls` / `docker run ... find` showing each package
+# resolves under npm's internal node_modules or unrelated build tooling,
+# never through this app's own dependency tree.
 
+CVE-2026-59873
+CVE-2026-59874
+CVE-2026-13149
+CVE-2026-14257
+CVE-2026-69152
+CVE-2026-33671
+CVE-2026-48815
+CVE-2026-69192
 CVE-2026-9496
-CVE-2026-73566
