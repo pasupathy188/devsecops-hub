@@ -52,3 +52,17 @@ related CVEs). The pipeline correctly:
 
 The dependency was then restored to a patched version and the pipeline
 confirmed green again, validating the full scan-gate-report loop end to end.
+## Database Cleanup — [today's date]
+
+Findings that had accumulated in the compliance database from scans run
+before `.trivyignore` was fully populated (10 confirmed false positives:
+tar, brace-expansion x3, ip-address, picomatch, sigstore, pacote, plus
+browserslist from npm-audit) were identified and removed to keep the
+dashboard's finding count accurate and reflective of genuinely actionable
+issues.
+
+Remaining finding as of this cleanup: CVE-2026-14456 (OpenSSL,
+libcrypto3/libssl3) — real, unpatched at the OS package level as of
+this date. Not suppressed; awaiting Alpine's upstream security patch
+(target: 3.5.8-r0). Rechecked periodically via a fresh `--no-cache`
+Docker build.
